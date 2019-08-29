@@ -1,0 +1,3194 @@
+##############################################################################
+# Definitions of functions used in the hardening script
+##############################################################################
+
+##############################################################################
+# Script usage function
+##############################################################################
+Usage_fn()
+{
+cat <<EOD 2>&1
+#=====================================================================
+#
+#        FILE: `basename $0`
+#
+#       Usage: `basename $0` [ verify / repair ]
+#
+#     Example: `basename $0` verify
+#              `basename $0` repair
+#
+#=====================================================================
+EOD
+}
+
+##############################################################################
+# Display the basic parameters about the server
+##############################################################################
+Basic_server_info_fn()
+{
+${ECHO_CMD} "SERVER NAME : `uname -n`" | tee -a ${DATA_FILE}
+${ECHO_CMD} "Operating System : ` uname -sr`" | tee -a ${DATA_FILE}
+${ECHO_CMD} "Script executed on : ${DATE}" | tee -a ${DATA_FILE}
+}
+
+##############################################################################
+# Clean the script related temporary files
+##############################################################################
+Clean_fn()
+{
+echo "No need to clean anything" >/dev/null
+}
+
+#############################################################################
+# Function to Display the latest version of kernel
+#############################################################################
+kernel_version_fn()
+{
+NUM_CHK="$1"
+${ECHO_CMD} "\nCOMMAND: uname -r\n" | tee -a ${DATA_FILE}
+
+if [ "${OS}" = "Linux" ] || [ "${OS}" = "Solaris" ] ;  then
+	${ECHO_CMD} "${NORM}CURRENT VALUE: latest kernel version is `uname -r`${NORM}" | tee -a ${DATA_FILE}
+	${ECHO_CMD} "${NORM}EXPECTED VALUE: latest kernel version is `uname -r`${NORM}" | tee -a ${DATA_FILE}
+	SUCCESS_NUM_CHK="${SUCCESS_NUM_CHK}:${NUM_CHK}"
+elif [ "${OS}" = "HP-UX" ] ; then
+	${ECHO_CMD} "${NORM}CURRENT VALUE: latest kernel version is `swlist | grep QPK`${NORM}" | tee -a ${DATA_FILE}
+	${ECHO_CMD} "${NORM}EXPECTED VALUE: latest kernel version is `swlist | grep QPK`${NORM}" | tee -a ${DATA_FILE}
+	SUCCESS_NUM_CHK="${SUCCESS_NUM_CHK}:${NUM_CHK}"
+fi
+
+${ECHO_CMD} "\nOUTPUT: `uname -r`" | tee -a ${DATA_FILE}
+NUM_CHK=""
+}
+
+#############################################################################
+# Function to check file permission, group and ownership 
+#############################################################################
+fileperm_verify_fn()
+{
+PERM="$1"
+OWNER="$2"
+GROUP="$3"
+FILE="$4"
+OCT_PERM="$5"
+NUM_CHK="$6"
+
+${ECHO_CMD} "\nCOMMAND: ls -lrt ${FILE}\n" | tee -a ${DATA_FILE}
+
+if [ "${OS}" = "HP-UX" ] && [ "${FILE}" = "/etc/group" ] ; then
+	OWNER="bin"                                    ; export OWNER
+	GROUP="bin"                                   ; export GROUP
+fi
+
+if [ ! -f ${FILE} ] ; then
+	${ECHO_CMD} "${NORM}CURRENT VALUE: NOT AS PER EXPECTED VALUE, FILE ${FILE} is not present${NORM}" | tee -a ${DATA_FILE}
+	${ECHO_CMD} "${NORM}EXPECTED VALUE: FILE ${FILE} should has ${PERM} permissions and Ownership should belongs to ${OWNER}:${GROUP}${NORM}" | tee -a ${DATA_FILE}	
+	FAILED_NUM_CHK="${FAILED_NUM_CHK}:${NUM_CHK}"
+else
+	PERM_FIELD=`ls -l ${FILE}|awk -F " " '{print $1}'|tr -d '.'`
+	OWNER_FIELD=`ls -l ${FILE}|awk -F " " '{print $3}'`
+	GROUP_FIELD=`ls -l ${FILE}|awk -F " " '{print $4}'`
+	
+	if [ "${PERM_FIELD}" = "${PERM}" ] && [ "${OWNER_FIELD}" = "${OWNER}" ] && [ "${GROUP_FIELD}" = "${GROUP}" ] ;then
+		${ECHO_CMD} "${NORM}CURRENT VALUE: AS PER EXPECTED VALUE, FILE ${FILE} has ${PERM} permissions and Ownership belongs to ${OWNER}:${GROUP}${NORM}" | tee -a ${DATA_FILE}
+		${ECHO_CMD} "${NORM}EXPECTED VALUE: FILE ${FILE} should has ${PERM} permissions and Ownership should belongs to ${OWNER}:${GROUP}${NORM}" | tee -a ${DATA_FILE}	
+		SUCCESS_NUM_CHK="${SUCCESS_NUM_CHK}:${NUM_CHK}"
+	else
+		${ECHO_CMD} "${NORM}CURRENT VALUE: NOT AS PER EXPECTED VALUE, FILE ${FILE} doesn't has ${PERM} permissions OR Ownership doesn't belongs to ${OWNER}:${GROUP}${NORM}" | tee -a ${DATA_FILE}
+		${ECHO_CMD} "${NORM}EXPECTED VALUE: FILE ${FILE} should has ${PERM} permissions and Ownership should belongs to ${OWNER}:${GROUP}${NORM}" | tee -a ${DATA_FILE}	
+		FAILED_NUM_CHK="${FAILED_NUM_CHK}:${NUM_CHK}"
+    fi
+fi
+
+${ECHO_CMD} "\nOUTPUT: `ls -lrt ${FILE} 2>/dev/null`" | tee -a ${DATA_FILE}
+NUM_CHK=""
+}
+
+#############################################################################
+# Function to set file permission, group and ownership 
+#############################################################################
+fileperm_set_fn()
+{
+PERM="$1"
+OWNER="$2"
+GROUP="$3"
+FILE="$4"
+OCT_PERM="$5"
+NUM_CHK="$6"
+
+${ECHO_CMD} "\nCOMMAND: ls -lrt ${FILE}\n" | tee -a ${DATA_FILE}
+
+if [ "${OS}" = "HP-UX" ] && [ "${FILE}" = "/etc/group" ] ; then
+	OWNER="bin"                                    ; export OWNER
+	GROUP="bin"                                   ; export GROUP
+fi
+
+if [ ! -f ${FILE} ] ; then
+	${ECHO_CMD} "CURRENT VALUE: NOT AS PER EXPECTED VALUE, ${FILE} is not present" >/dev/null 2>&1
+	touch ${FILE}
+	${ECHO_CMD} "EXPECTED VALUE: ${FILE} is created" >/dev/null 2>&1
+fi
+
+PERM_FIELD=`ls -l ${FILE}|awk -F " " '{print $1}'|tr -d '.'`
+OWNER_FIELD=`ls -l ${FILE}|awk -F " " '{print $3}'`
+GROUP_FIELD=`ls -l ${FILE}|awk -F " " '{print $4}'`
+	
+if [ "${PERM_FIELD}" = "${PERM}" ] && [ "${OWNER_FIELD}" = "${OWNER}" ] && [ "${GROUP_FIELD}" = "${GROUP}" ] ;then
+	${ECHO_CMD} "${NORM}CURRENT VALUE: AS PER EXPECTED VALUE, FILE ${FILE} has ${PERM} permissions and Ownership belongs to ${OWNER}:${GROUP}${NORM}" | tee -a ${DATA_FILE}
+	${ECHO_CMD} "${NORM}EXPECTED VALUE: FILE ${FILE} should has ${PERM} permissions and Ownership should belongs to ${OWNER}:${GROUP}${NORM}" | tee -a ${DATA_FILE}	
+	SUCCESS_NUM_CHK="${SUCCESS_NUM_CHK}:${NUM_CHK}"
+else
+	chmod ${OCT_PERM} ${FILE}
+	chown ${OWNER}:${GROUP} ${FILE}
+	${ECHO_CMD} "${NORM}CURRENT VALUE: AS PER EXPECTED VALUE, FILE ${FILE} has ${PERM} permissions and Ownership belongs to ${OWNER}:${GROUP}${NORM}" | tee -a ${DATA_FILE}
+	${ECHO_CMD} "${NORM}EXPECTED VALUE: FILE ${FILE} permissions and Ownership has been successfully changed to ${PERM} and ${OWNER}:${GROUP}${NORM}" | tee -a ${DATA_FILE}	
+	SUCCESS_NUM_CHK="${SUCCESS_NUM_CHK}:${NUM_CHK}"
+fi
+
+
+if [ ${FILE} = "$CRON_ALLOW" ] || [ ${FILE} = "$AT_ALLOW" ] ; then
+	#Only root should execute cron jobs. Hence giving access to root user to run cron jobs
+	${ECHO_CMD} "root" >$FILE 
+	SUCCESS_NUM_CHK="${SUCCESS_NUM_CHK}:${NUM_CHK}"
+fi
+
+${ECHO_CMD} "\nOUTPUT: `ls -lrt ${FILE}`" | tee -a ${DATA_FILE}
+NUM_CHK=""
+}
+
+#############################################################################
+# Function to check whether the file is present
+#############################################################################
+file_exists_fn()
+{
+FILE="$1"
+NUM_CHK="$2"
+
+${ECHO_CMD} "\nCOMMAND: ls -l ${FILE}\n" | tee -a ${DATA_FILE}
+if [ -f "${FILE}" ] ; then
+	${ECHO_CMD} "${NORM}CURRENT VALUE: AS PER EXPECTED VALUE, file ${FILE} is exist${NORM}" | tee -a ${DATA_FILE}
+	${ECHO_CMD} "${NORM}EXPECTED VALUE: file ${FILE} should be exist${NORM}" | tee -a ${DATA_FILE}
+	SUCCESS_NUM_CHK="${SUCCESS_NUM_CHK}:${NUM_CHK}"
+else
+	${ECHO_CMD} "${NORM}CURRENT VALUE: NOT AS PER EXPECTED VALUE, file ${FILE} does not exist${NORM}" | tee -a ${DATA_FILE}
+	${ECHO_CMD} "${NORM}EXPECTED VALUE: file ${FILE} file should be exist${NORM}" | tee -a ${DATA_FILE}
+	FAILED_NUM_CHK="${FAILED_NUM_CHK}:${NUM_CHK}"
+fi
+
+${ECHO_CMD} "\nOUTPUT: `ls -l ${FILE} 2>/dev/null`" | tee -a ${DATA_FILE}
+NUM_CHK=""
+}
+
+#############################################################################
+# Function to remove file. If the file is either at.allow / cron.allow,  then modify content
+#############################################################################
+file_remove_fn()
+{
+FILE="$1"
+NUM_CHK="$2"
+${ECHO_CMD} "\nCOMMAND: ls -l ${FILE}\n" | tee -a ${DATA_FILE}
+
+if [ -f "${FILE}" ] ; then
+	${ECHO_CMD} "${NORM}CURRENT VALUE: NOT AS PER EXPECTED VALUE, file ${FILE} is present${NORM}" | tee -a ${DATA_FILE} 
+	rm -f ${FILE} && ${ECHO_CMD} "${NORM}EXPECTED VALUE: file ${FILE} is removed successfully now${NORM}" | tee -a ${DATA_FILE} 
+	SUCCESS_NUM_CHK="${SUCCESS_NUM_CHK}:${NUM_CHK}"
+else
+	${ECHO_CMD} "${NORM}CURRENT VALUE: AS PER EXPECTED VALUE, file ${FILE} does not exist${NORM}" | tee -a ${DATA_FILE}
+	${ECHO_CMD} "${NORM}EXPECTED VALUE: file ${FILE} should not exist${NORM}" | tee -a ${DATA_FILE} 
+	SUCCESS_NUM_CHK="${SUCCESS_NUM_CHK}:${NUM_CHK}"
+fi
+
+${ECHO_CMD} "\nOUTPUT: `ls -l ${FILE} 2>/dev/null`" | tee -a ${DATA_FILE}
+NUM_CHK=""
+}
+
+#############################################################################
+# Function to check NFS shares exported with proper user access and authorized hosts
+#############################################################################
+nfs_share_verfy_access_fn()
+{
+NUM_CHK="$1"
+${ECHO_CMD} "\nCOMMAND: cat ${EXPORT_FILE} | grep -v '#' | grep root\n" | tee -a ${DATA_FILE}
+
+if [ ! -f ${EXPORT_FILE} ] ; then
+	${ECHO_CMD} "${NORM}CURRENT VALUE: ${EXPORT_FILE} file is not exists. Hence no need to check NFS shares/exports${NORM}" | tee -a ${DATA_FILE}
+	${ECHO_CMD} "${NORM}EXPECTED VALUE: ${EXPORT_FILE} file should be present${NORM}" | tee -a ${DATA_FILE}
+	FAILED_NUM_CHK="${FAILED_NUM_CHK}:${NUM_CHK}"
+	return 1
+fi
+
+if [ `cat "${EXPORT_FILE}" 2> /dev/null |grep -v '#' | grep root | wc -l` -ne 0 ]; then
+	${ECHO_CMD} "${NORM}CURRENT VALUE: NOT AS PER EXPECTED VALUE, Following NFS shares are exported with root access ${NORM}" | tee -a ${DATA_FILE}
+	${ECHO_CMD} "${NORM}EXPECTED VALUE: NO NFS shares should be exported with root access.${NORM}" | tee -a ${DATA_FILE}
+	FAILED_NUM_CHK="${FAILED_NUM_CHK}:${NUM_CHK}"
+else
+	${ECHO_CMD} "${NORM}CURRENT VALUE: AS PER EXPECTED VALUE, None of the NFS shares are exported with root access.${NORM}" | tee -a ${DATA_FILE}
+	${ECHO_CMD} "${NORM}EXPECTED VALUE: NO NFS shares should be exported with root access.${NORM}" | tee -a ${DATA_FILE}
+	SUCCESS_NUM_CHK="${SUCCESS_NUM_CHK}:${NUM_CHK}"
+fi
+${ECHO_CMD} "\nOUTPUT: `cat ${EXPORT_FILE} | grep -v '#' | grep root`" | tee -a ${DATA_FILE}
+
+${ECHO_CMD} "\nCOMMAND: cat ${EXPORT_FILE} | grep -v '#'|egrep -v 'ro|rw' | wc -l\n" | tee -a ${DATA_FILE}
+
+if [ `cat "${EXPORT_FILE}" 2> /dev/null | grep -v '#'|egrep -v 'ro|rw' | wc -l` -ne 0 ] ;then
+	${ECHO_CMD} "${NORM}CURRENT VALUE: NOT AS PER EXPECTED VALUE, Following NFS shares are not restricted to specific hosts ${NORM}" | tee -a ${DATA_FILE}
+	${ECHO_CMD} "${NORM}EXPECTED VALUE: Exported file systems should be authorized to specific hosts${NORM}" | tee -a ${DATA_FILE}
+	FAILED_NUM_CHK="${FAILED_NUM_CHK}:${NUM_CHK}"
+else
+	${ECHO_CMD} "${NORM}CURRENT VALUE: AS PER EXPECTED VALUE, The exported NFS Shares are authorized to specific hosts${NORM}" | tee -a ${DATA_FILE}
+	${ECHO_CMD} "${NORM}EXPECTED VALUE: Exported file systems should be authorized to specific hosts.${NORM}" | tee -a ${DATA_FILE}
+	SUCCESS_NUM_CHK="${SUCCESS_NUM_CHK}:${NUM_CHK}"
+fi
+
+${ECHO_CMD} "\nOUTPUT: `cat ${EXPORT_FILE} | grep -v '#'|egrep -v 'ro|rw' | wc -l`" | tee -a ${DATA_FILE}
+NUM_CHK=""
+}
+
+#############################################################################
+# Function to set NFS shares exported with proper user access and authorized hosts
+#############################################################################
+nfs_share_set_access_fn()
+{
+NUM_CHK="$1"
+${ECHO_CMD} "\nCOMMAND: cat ${EXPORT_FILE} | grep -v '#' | grep root\n" | tee -a ${DATA_FILE}
+
+if [ ! -f ${EXPORT_FILE} ] ; then
+	touch ${EXPORT_FILE}
+fi
+
+if [ `cat "${EXPORT_FILE}" 2> /dev/null |grep -v '#' | grep root | wc -l` -ne 0 ]; then
+	${ECHO_CMD} "${NORM}CURRENT VALUE: NOT AS PER EXPECTED VALUE, Following NFS shares are exported with root access${NORM}" | tee -a ${DATA_FILE}
+	${ECHO_CMD} "${NORM}EXPECTED VALUE: NO NFS shares should be exported with root access.${NORM}" | tee -a ${DATA_FILE}
+	SUCCESS_NUM_CHK="${SUCCESS_NUM_CHK}:${NUM_CHK}"
+else
+	${ECHO_CMD} "${NORM}CURRENT VALUE: AS PER EXPECTED VALUE, None of the NFS shares are exported with root access.${NORM}" | tee -a ${DATA_FILE}
+	${ECHO_CMD} "${NORM}EXPECTED VALUE: NO NFS shares should be exported with root access.${NORM}" | tee -a ${DATA_FILE}
+	SUCCESS_NUM_CHK="${SUCCESS_NUM_CHK}:${NUM_CHK}"
+fi
+${ECHO_CMD} "\nOUTPUT: `cat ${EXPORT_FILE} | grep -v '#' | grep root`" | tee -a ${DATA_FILE}
+
+${ECHO_CMD} "\nCOMMAND: cat ${EXPORT_FILE} | grep -v '#'|egrep -v 'ro|rw' | wc -l\n" | tee -a ${DATA_FILE}
+
+if [ `cat "${EXPORT_FILE}" 2> /dev/null | grep -v '#'|egrep -v 'ro|rw' | wc -l` -ne 0 ] ;then
+	${ECHO_CMD} "${NORM}CURRENT VALUE: NOT AS PER EXPECTED VALUE, Following NFS shares are not restricted to specific hosts ${NORM}" | tee -a ${DATA_FILE}
+	${ECHO_CMD} "${NORM}EXPECTED VALUE: Exported file systems should be authorized to specific hosts ${NORM}" | tee -a ${DATA_FILE}
+	SUCCESS_NUM_CHK="${SUCCESS_NUM_CHK}:${NUM_CHK}"
+else
+	${ECHO_CMD} "${NORM}CURRENT VALUE: AS PER EXPECTED VALUE, The exported NFS Shares are authorized to specific hosts ${NORM}" | tee -a ${DATA_FILE}
+	${ECHO_CMD} "${NORM}EXPECTED VALUE: Exported file systems should be authorized to specific hosts${NORM}" | tee -a ${DATA_FILE}
+	SUCCESS_NUM_CHK="${SUCCESS_NUM_CHK}:${NUM_CHK}"
+fi
+
+if [ `grep -c "^share" ${EXPORT_FILE}` -gt 0 ] ; then 
+	#sed -i "s/^share.*/#&/g" "${EXPORT_FILE}" 
+	sed 's/^share.*/#&/g' ${EXPORT_FILE} > ${EXPORT_FILE}.bak && cp ${EXPORT_FILE}.bak ${EXPORT_FILE}
+	${ECHO_CMD} "${NORM}EXPECTED VALUE: nfs shouldn't be shared. Hence commenting the shared DIR/FS${NORM}" | tee -a ${DATA_FILE}
+fi
+
+${ECHO_CMD} "\nOUTPUT: `cat ${EXPORT_FILE} | grep -v '#'|egrep -v 'ro|rw' | wc -l`" | tee -a ${DATA_FILE}
+NUM_CHK=""
+}
+
+##############################################################################
+# Function to display the banner message
+##############################################################################
+banner_msg_fn()
+{
+cat <<EOD_banner 2>&1
+	Property of Company, & For Authorized Users Only 
+	By continuing to use this application which is governed                      
+	by the Companyat [[Rules and regulations link]]s                              
+EOD_banner
+}
+
+#############################################################################
+# Verify whether banner msg is present in /etc/motd and /etc/issue files
+#############################################################################
+banner_std_login_verify_fn()
+{
+NUM_CHK="$1"
+for F in ${MOTD_FILE} ${ISSUE_FILE}
+do
+	${ECHO_CMD} "\nCOMMAND: cat ${F}\n" | tee -a ${DATA_FILE}
+	if [ ! -f "${F}" ] ; then
+		${ECHO_CMD} "${NORM}CURRENT VALUE: NOT AS PER EXPECTED VALUE, ${F} file is not present${NORM}" | tee -a ${DATA_FILE}
+		${ECHO_CMD} "${NORM}EXPECTED VALUE: Banner should be set as per expected value${NORM}" | tee -a ${DATA_FILE}
+		FAILED_NUM_CHK="${FAILED_NUM_CHK}:${NUM_CHK}"
+	else 
+		egrep -i "Property of Company" ${F} >/dev/null
+		if [ $? -eq 0 ] ; then
+			${ECHO_CMD} "${NORM}CURRENT VALUE: AS PER EXPECTED VALUE, Banner is already set as per expected value${NORM}" | tee -a ${DATA_FILE}
+			${ECHO_CMD} "${NORM}EXPECTED VALUE: Banner should be set as per expected value${NORM}" | tee -a ${DATA_FILE}
+			SUCCESS_NUM_CHK="${SUCCESS_NUM_CHK}:${NUM_CHK}"
+		else
+			${ECHO_CMD} "${NORM}CURRENT VALUE: NOT AS PER EXPECTED VALUE, Banner is not set as per expected value${NORM}" | tee -a ${DATA_FILE}
+			${ECHO_CMD} "${NORM}EXPECTED VALUE: Banner should be set as per expected value${NORM}" | tee -a ${DATA_FILE}
+			FAILED_NUM_CHK="${FAILED_NUM_CHK}:${NUM_CHK}"
+		fi
+	fi
+	${ECHO_CMD} "\nOUTPUT:\n`cat ${F} 2>/dev/null`" | tee -a ${DATA_FILE}
+done
+NUM_CHK=""
+}
+
+#############################################################################
+# Function to display banner msg for standard login. Copy banner msg to /etc/motd and /etc/issue files if required
+#############################################################################
+banner_std_login_set_fn()
+{
+NUM_CHK="$1"
+for F in ${MOTD_FILE} ${ISSUE_FILE}
+do
+	${ECHO_CMD} "\nCOMMAND: cat ${F}\n" | tee -a ${DATA_FILE}
+	if [ ! -f "${F}" ] ; then
+		touch ${F} 
+		banner_msg_fn > ${F} 		
+		SUCCESS_NUM_CHK="${SUCCESS_NUM_CHK}:${NUM_CHK}"
+	else 
+		egrep -i "Property of Company" ${F} >/dev/null
+		if [ $? -eq 0 ] ; then
+			${ECHO_CMD} "${NORM}CURRENT VALUE: AS PER EXPECTED VALUE, Banner is already set${NORM}" | tee -a ${DATA_FILE}
+			${ECHO_CMD} "${NORM}EXPECTED VALUE: Banner should be set as per expected value${NORM}" | tee -a ${DATA_FILE}
+			SUCCESS_NUM_CHK="${SUCCESS_NUM_CHK}:${NUM_CHK}"
+		else
+			banner_msg_fn > ${F} 
+			${ECHO_CMD} "${NORM}CURRENT VALUE: AS PER EXPECTED VALUE, Banner is set${NORM}" | tee -a ${DATA_FILE}			
+			${ECHO_CMD} "${NORM}EXPECTED VALUE: Banner is currently set as per expected value ${NORM}" | tee -a ${DATA_FILE}
+			SUCCESS_NUM_CHK="${SUCCESS_NUM_CHK}:${NUM_CHK}"
+		fi
+	fi
+	${ECHO_CMD} "\nOUTPUT:\n`cat ${F} 2>/dev/null`" | tee -a ${DATA_FILE}
+done
+NUM_CHK=""
+}
+	
+#############################################################################
+# Function to display banner msg for ssh login
+#############################################################################
+banner_ssh_ftp_verify_fn()
+{
+STRING="$1"
+FILE="$2"
+BAN_MSG="$3"
+DELIMITER="$4"
+NUM_CHK="$5"
+
+${ECHO_CMD} "\nCOMMAND: cat ${FILE} | egrep -v "^#" | egrep -i \"${STRING}\"\n" | tee -a ${DATA_FILE}
+
+if [ ! -f "${FILE}" ] ; then
+	${ECHO_CMD} "${NORM}CURRENT VALUE: NOT AS PER EXPECTED VALUE, FILE ${FILE} file is not present${NORM}" 
+	${ECHO_CMD} "${NORM}EXPECTED VALUE: Banner should be set as per expected value${NORM}" | tee -a ${DATA_FILE}
+	FAILED_NUM_CHK="${FAILED_NUM_CHK}:${NUM_CHK}"
+else
+	#cat /etc/ssh/ssh_config | egrep -i "^#" | egrep -i "banner"  | awk -F" " '{print $3}' | xargs grep -iq "Property of Company"
+	cat "${FILE}" | egrep -v "^#" | egrep -i "${STRING}"  |awk -F"${DELIMITER}" '{print $2}' | xargs grep -iq "${3}"
+	if [ $? -eq 0 ]  ; then
+		${ECHO_CMD} "${NORM}CURRENT VALUE: AS PER EXPECTED VALUE, banner already set for SSH${NORM}" | tee -a ${DATA_FILE}
+		${ECHO_CMD} "${NORM}EXPECTED VALUE: Banner should be set as per expected value${NORM}" | tee -a ${DATA_FILE}
+		SUCCESS_NUM_CHK="${SUCCESS_NUM_CHK}:${NUM_CHK}"
+	else
+		${ECHO_CMD} "${NORM}CURRENT VALUE: AS PER EXPECTED VALUE, Banner msg is not present in ${FILE}${NORM}" | tee -a ${DATA_FILE}
+		${ECHO_CMD} "${NORM}EXPECTED VALUE: Banner should be set as per expected value${NORM}" | tee -a ${DATA_FILE}
+		FAILED_NUM_CHK="${FAILED_NUM_CHK}:${NUM_CHK}"
+	fi
+fi
+
+${ECHO_CMD} "\nOUTPUT: `cat ${FILE} 2>/dev/null| egrep -v \"^#\" | egrep -i \"${STRING}\"`" | tee -a ${DATA_FILE}
+NUM_CHK=""
+}
+
+#############################################################################
+# Function to configure banner msg for ssh login
+#############################################################################
+banner_ssh_ftp_set_fn()
+{
+STRING="$1"
+FILE="$2"
+BAN_MSG="$3"
+DELIMITER="$4"
+NUM_CHK="$5"
+
+${ECHO_CMD} "\nCOMMAND: cat ${FILE} | egrep -v \"^#\" | egrep -i \"${STRING}\"\n" | tee -a ${DATA_FILE}
+
+if [ ! -f "${FILE}" ] ; then
+	${ECHO_CMD} "${NORM}CURRENT VALUE: NOT AS PER EXPECTED VALUE, FILE ${FILE} is not present${NORM}" 
+	${ECHO_CMD} "${NORM}EXPECTED VALUE: Banner should be set as per expected value${NORM}" | tee -a ${DATA_FILE}
+	touch ${FILE} 2>/dev/null
+	if [ $? -ne 0 ] ; then
+		${ECHO_CMD} "\n" | tee -a ${DATA_FILE}
+		${ECHO_CMD} "${NORM}CURRENT VALUE: NOT AS PER EXPECTED VALUE, Failed to create FILE ${FILE}${NORM}" | tee -a ${DATA_FILE}
+		${ECHO_CMD} "${NORM}EXPECTED VALUE: Banner should be set as per expected value${NORM}" | tee -a ${DATA_FILE}
+		FAILED_NUM_CHK="${FAILED_NUM_CHK}:${NUM_CHK}"
+		NUM_CHK=""
+		${ECHO_CMD} "\nOUTPUT: `cat ${FILE} 2>/dev/null| egrep -v \"^#\" | egrep -i \"${STRING}\"`" | tee -a ${DATA_FILE}
+		return 1
+	fi		
+fi
+
+#cat /etc/ssh/ssh_config | egrep -i "^#" | egrep -i "banner"  | awk -F" " '{print $2}' | xargs grep -iq "Property of Company"
+cat "${FILE}" | egrep -v "^#" | egrep -i "${STRING}"  |awk -F"${DELIMITER}" '{print $2}' | xargs grep -iq "${3}"
+if [ $? -eq 0 ]  ; then
+	${ECHO_CMD} "${NORM}CURRENT VALUE: AS PER EXPECTED VALUE, Banner is already set for SSH${NORM}" | tee -a ${DATA_FILE}
+	${ECHO_CMD} "${NORM}EXPECTED VALUE: Banner should be set as per expected value${NORM}" | tee -a ${DATA_FILE}
+	SUCCESS_NUM_CHK="${SUCCESS_NUM_CHK}:${NUM_CHK}"
+else
+	${ECHO_CMD} "${NORM}CURRENT VALUE: AS PER EXPECTED VALUE, Banner msg is not present in ${FILE}${NORM}" | tee -a ${DATA_FILE}
+	#replace the line which is having string banner with "BANNER $MOTD_FILE"
+	#sed -i.bak "/^${STRING}/ s/^/#/"  ${FILE}
+	sed "s/^${STRING}/#&/g" ${FILE} > ${FILE}.bak && cp ${FILE}.bak ${FILE}
+	${ECHO_CMD} "${STRING}${DELIMITER}${MOTD_FILE}" >> ${FILE} | tee -a ${DATA_FILE}
+	${ECHO_CMD} "${NORM}EXPECTED VALUE: Banner is set as per expected value now${NORM}" | tee -a ${DATA_FILE}
+	SUCCESS_NUM_CHK="${SUCCESS_NUM_CHK}:${NUM_CHK}"
+fi
+
+${ECHO_CMD} "\nOUTPUT: `cat ${FILE} 2>/dev/null| egrep -v \"^#\" | egrep -i \"${STRING}\"`" | tee -a ${DATA_FILE}
+NUM_CHK=""
+}
+
+#############################################################################
+# Function to display GNOME banner msg if GNOME is configured in server
+#############################################################################
+banner_GNOME_verify_fn()
+{
+${ECHO_CMD} "\nCOMMAND: NOT APPLICABLE, GNOME Service is not configured in ${OS} server\n" | tee -a ${DATA_FILE}
+NUM_CHK="$1"
+if [ "${OS}" = "SunOS" ] || [ "${OS}" = "Linux" ] || [ "${OS}" = "HP-UX" ] ; then
+	${ECHO_CMD} "${NORM}CURRENT VALUE: NOT APPLICABLE, GNOME Service is not configured in ${OS} server${NORM}"
+	${ECHO_CMD} "${NORM}EXPECTED VALUE: NOT APPLICABLE, GNOME Service is not configured in ${OS} server${NORM}"
+	NA_NUM_CHK="${NA_NUM_CHK}:${NUM_CHK}"
+fi
+${ECHO_CMD} "\nOUTPUT: NA" | tee -a ${DATA_FILE}
+NUM_CHK=""
+}
+
+#############################################################################
+# Function to display GNOME banner msg if GNOME is configured in server
+#############################################################################
+banner_TELNET_verify_fn()
+{
+${ECHO_CMD} "\nCOMMAND: NOT APPLICABLE\n" | tee -a ${DATA_FILE}
+NUM_CHK="$1"
+if [ "${OS}" = "SunOS" ] || [ "${OS}" = "Linux" ] || [ "${OS}" = "HP-UX" ] ; then
+	${ECHO_CMD} "CURRENT VALUE: AS PER EXPECTED VALUE, Banner msg is already set via ${ISSUE_FILE}. No need to set it separately for telnet" | tee -a ${DATA_FILE}
+	${ECHO_CMD} "EXPECTED VALUE: No need to set Banner separately for telnet if Banner msg is set via ${ISSUE_FILE}" | tee -a ${DATA_FILE}
+	NA_NUM_CHK="${NA_NUM_CHK}:${NUM_CHK}"
+fi
+${ECHO_CMD} "\nOUTPUT: NA" | tee -a ${DATA_FILE}
+NUM_CHK=""
+}
+
+#############################################################################
+# Function to fetch the password less users 
+#############################################################################
+user_empty_password_verify_fn()
+{
+NUM_CHK="$1"
+FLAG=0
+USERS="`cut -d: -f1 $USER_FILE`"
+${ECHO_CMD} "\nCOMMAND: cat ${SHADOW_FILE} | awk -F:  '(\$2 == \"\" ) {print \$1}'\n" | tee -a ${DATA_FILE}
+
+for u in $USERS
+do
+	#if os is Linux, run "passwd -S user" command to get the status of the password for a given account. IN HP-UX/Solaris, run "passwd -s user" for the same
+    if [ "${OS}" = "Linux" ] ; then
+		passwd -S $u | egrep "NP"
+	else
+		passwd -s $u | egrep "NP"
+	fi
+	if [ $? -eq 0 ] ; then
+		${ECHO_CMD} "${NORM}CURRENT VALUE: NOT AS PER EXPECTED VALUE, user \"${u}\" has empty password. Need to lock the user${NORM}" | tee -a ${DATA_FILE}
+		FLAG=1
+	else
+		${ECHO_CMD} "${NORM}CURRENT VALUE: AS PER EXPECTED VALUE, user \"${u}\" has password which is expected${NORM}" >/dev/null
+	fi
+done
+if [ ${FLAG} -ne 0 ] ; then
+	${ECHO_CMD} "${NORM}EXPECTED VALUE: Every user should have password set to them or should be locked${NORM}" | tee -a ${DATA_FILE}
+	FAILED_NUM_CHK="${FAILED_NUM_CHK}:${NUM_CHK}"
+else
+	${ECHO_CMD} "${NORM}CURRENT VALUE: AS PER EXPECTED VALUE, None of the users found with empty password${NORM}" | tee -a ${DATA_FILE}
+	${ECHO_CMD} "${NORM}EXPECTED VALUE: Every user should have password set to them or should be locked${NORM}" | tee -a ${DATA_FILE}
+	SUCCESS_NUM_CHK="${SUCCESS_NUM_CHK}:${NUM_CHK}"
+fi
+${ECHO_CMD} "\nOUTPUT: `cat ${SHADOW_FILE} | awk -F:  '(\$2 == \"\" ) {print \$1}'`" | tee -a ${DATA_FILE}
+NUM_CHK=""
+}
+
+#############################################################################
+# Function to lock the password less users  
+#############################################################################
+user_empty_password_set_fn()
+{
+NUM_CHK="$1"
+FLAG=0
+USERS="`cut -d: -f1 $USER_FILE`"
+${ECHO_CMD} "\nCOMMAND: cat ${SHADOW_FILE} | awk -F:  '(\$2 == \"\" ) {print \$1}'\n" | tee -a ${DATA_FILE}
+
+for u in $USERS
+do
+	#Lock the user if user has empty password. If os is Linux, run "passwd -S user" command to get the status of the password for a given account. IN HP-UX/Solaris, run "passwd -s user"
+    if [ "${OS}" = "Linux" ] ; then
+		passwd -S $u | egrep "NP"
+	else
+		passwd -s $u | egrep "NP"
+	fi
+	if [ $? -eq 0 ] ; then
+		${ECHO_CMD} "${NORM}CURRENT VALUE: NOT AS PER EXPECTED VALUE, user \"${u}\" has empty password. Need to lock the user${NORM}" | tee -a ${DATA_FILE}
+        passwd -l $u && ${ECHO_CMD} "${NORM}CURRENT VALUE: AS PER EXPECTED VALUE, user \"${u}\" is locked due to empty password" | tee -a ${DATA_FILE}
+		FLAG=0
+	else
+		${ECHO_CMD} "${NORM}CURRENT VALUE: AS PER EXPECTED VALUE, user \"${u}\" has password${NORM}" >/dev/null
+    fi
+done
+if [ ${FLAG} -ne 0 ] ; then
+	${ECHO_CMD} "${NORM}EXPECTED VALUE: Every user should have password set to them or should be locked${NORM}" | tee -a ${DATA_FILE}
+	FAILED_NUM_CHK="${FAILED_NUM_CHK}:${NUM_CHK}"
+else
+	${ECHO_CMD} "${NORM}CURRENT VALUE: AS PER EXPECTED VALUE, None of the users found with empty password${NORM}" | tee -a ${DATA_FILE}
+	${ECHO_CMD} "${NORM}EXPECTED VALUE: Every user should have password set to them or should be locked${NORM}" | tee -a ${DATA_FILE}
+	SUCCESS_NUM_CHK="${SUCCESS_NUM_CHK}:${NUM_CHK}"
+fi
+${ECHO_CMD} "\nOUTPUT: `cat ${SHADOW_FILE} | awk -F:  '(\$2 == \"\" ) {print \$1}'`" | tee -a ${DATA_FILE}
+NUM_CHK=""
+}
+
+#############################################################################
+# Function to set strong password creation policies
+#############################################################################
+set_strong_passwd_Linux_verify_fn()
+{
+NUM_CHK="$1"
+FLAG=0
+if [ -f "${PAM_FILE}" ] ; then 
+	${ECHO_CMD} "\nCOMMAND: cat $PAM_FILE | egrep -v '^#' | egrep  'minlen=8'| egrep 'lcredit=-1'| egrep 'ocredit=-1'| egrep 'dcredit=-1'|egrep 'reject_username'\n" | tee -a ${DATA_FILE}
+	cat $PAM_FILE | egrep -v "^#" | egrep  "minlen=8"| egrep "lcredit=-1"| egrep "ocredit=-1"| egrep "dcredit=-1"|egrep "reject_username"  >/dev/null
+	if [ $? -ne 0 ] ; then
+		FLAG=1
+		${ECHO_CMD} "${NORM}CURRENT VALUE: NOT AS PER EXPECTED VALUE, Password policy parameters ( MINLEN,LOWERCASE and etc ) are not set as expected${NORM}" 
+		${ECHO_CMD} "${NORM}EXPECTED VALUE: Password policy parameters ( MINLEN,LOWERCASE and etc) should be set as expected${NORM}" | tee -a ${DATA_FILE}
+		${ECHO_CMD} "\nOUTPUT: `cat $PAM_FILE | egrep -v '^#' | egrep  'minlen=8'| egrep 'lcredit=-1'| egrep 'ocredit=-1'| egrep 'dcredit=-1'|egrep 'reject_username'`" | tee -a ${DATA_FILE}
+	else
+		${ECHO_CMD} "${NORM}CURRENT VALUE: AS PER EXPECTED VALUE, Password policy parameters ( MINLEN,LOWERCASE and etc ) are set as expected${NORM}" | tee -a ${DATA_FILE}
+		${ECHO_CMD} "${NORM}EXPECTED VALUE: Password policy parameters ( MINLEN,LOWERCASE and etc) should be set as expected${NORM}" | tee -a ${DATA_FILE}
+		${ECHO_CMD} "\nOUTPUT: `cat $PAM_FILE | egrep -v '^#' | egrep  'minlen=8'| egrep 'lcredit=-1'| egrep 'ocredit=-1'| egrep 'dcredit=-1'|egrep 'reject_username'`" | tee -a ${DATA_FILE}
+	fi
+	
+	${ECHO_CMD} "\nCOMMAND: cat $PAM_FILE | egrep -v '^#' | egrep  'remember=6'\n" | tee -a ${DATA_FILE}
+	cat $PAM_FILE | egrep -v "^#" | egrep  "remember=6"  >/dev/null
+	if [ $? -ne 0 ] ; then
+		FLAG=1
+		${ECHO_CMD} "${NORM}CURRENT VALUE: NOT AS PER EXPECTED VALUE, Password REUSAGE Parameter is not set as expected${NORM}" | tee -a ${DATA_FILE}
+		${ECHO_CMD} "${NORM}EXPECTED VALUE: Password REUSAGE Parameter should be set as expected${NORM}" | tee -a ${DATA_FILE}
+		${ECHO_CMD} "\nOUTPUT: `cat $PAM_FILE | egrep -v '^#' | egrep  'remember=6'`" | tee -a ${DATA_FILE}
+	else
+		${ECHO_CMD} "${NORM}CURRENT VALUE: AS PER EXPECTED VALUE, Password REUSAGE Parameter is set as expected${NORM}" | tee -a ${DATA_FILE}
+		${ECHO_CMD} "${NORM}EXPECTED VALUE: Password REUSAGE Parameter should be set as expected${NORM}" | tee -a ${DATA_FILE}
+		${ECHO_CMD} "\nOUTPUT: `cat $PAM_FILE | egrep -v '^#' | egrep  'remember=6'`" | tee -a ${DATA_FILE}
+	fi
+	
+	${ECHO_CMD} "\nCOMMAND: cat $PASSWORD_POLICY | egrep -v '^#' | egrep  'PASS_MAX_DAYS'\n" | tee -a ${DATA_FILE}
+	cat $PASSWORD_POLICY | egrep -v "^#" | egrep "PASS_MAX_DAYS" | grep "175" >/dev/null
+	if [ $? -ne 0 ] ; then
+		FLAG=1
+		${ECHO_CMD} "${NORM}CURRENT VALUE: NOT AS PER EXPECTED VALUE, Password EXPIRY DAYS Parameter is not set as expected${NORM}" | tee -a ${DATA_FILE}
+		${ECHO_CMD} "${NORM}EXPECTED VALUE: Password EXPIRY DAYS Parameter should be set as expected${NORM}" | tee -a ${DATA_FILE}
+		${ECHO_CMD} "\nOUTPUT: `cat $PASSWORD_POLICY | egrep -v '^#' | egrep  'PASS_MAX_DAYS'`" | tee -a ${DATA_FILE}
+	else
+		${ECHO_CMD} "${NORM}CURRENT VALUE: AS PER EXPECTED VALUE, Password EXPIRY DAYS Parameter is set as expected${NORM}" | tee -a ${DATA_FILE}
+		${ECHO_CMD} "${NORM}EXPECTED VALUE: Password EXPIRY DAYS Parameter should be set as expected${NORM}" | tee -a ${DATA_FILE}
+		${ECHO_CMD} "\nOUTPUT: `cat $PASSWORD_POLICY | egrep -v '^#' | egrep  'PASS_MAX_DAYS'`" | tee -a ${DATA_FILE}
+	fi
+	
+	${ECHO_CMD} "\nCOMMAND: cat $PASSWORD_POLICY | egrep -v '^#' | egrep  'PASS_WARN_AGE'\n" | tee -a ${DATA_FILE}
+	cat $PASSWORD_POLICY  | egrep -v "^#" | egrep "PASS_WARN_AGE" | grep "30" >/dev/null
+	if [ $? -ne 0 ] ; then
+		FLAG=1
+		${ECHO_CMD} "${NORM}CURRENT VALUE: NOT AS PER EXPECTED VALUE, Password WARN AGE Parameter is not set as expected${NORM}" | tee -a ${DATA_FILE}
+		${ECHO_CMD} "${NORM}EXPECTED VALUE: Password WARN AGE Parameter should be set as expected${NORM}" | tee -a ${DATA_FILE}
+		${ECHO_CMD} "\nOUTPUT: `cat $PASSWORD_POLICY | egrep -v '^#' | egrep  'PASS_WARN_AGE'`" | tee -a ${DATA_FILE}
+	else
+		${ECHO_CMD} "${NORM}CURRENT VALUE: AS PER EXPECTED VALUE, Password WARN AGE Parameter is set as expected${NORM}" | tee -a ${DATA_FILE}
+		${ECHO_CMD} "${NORM}EXPECTED VALUE: Password WARN AGE Parameter should be set as expected${NORM}" | tee -a ${DATA_FILE}
+		${ECHO_CMD} "\nOUTPUT: `cat $PASSWORD_POLICY | egrep -v '^#' | egrep  'PASS_WARN_AGE'`" | tee -a ${DATA_FILE}
+	fi
+else
+	${ECHO_CMD} "${NORM}CURRENT VALUE: NOT AS PER EXPECTED VALUE, ${PAM_FILE} is not present${NORM}"  | tee -a ${DATA_FILE}
+	${ECHO_CMD} "${NORM}EXPECTED VALUE: ${PAM_FILE} should be present to check Password policy parameters${NORM}"  | tee -a ${DATA_FILE}
+	FLAG=1
+fi
+
+if [ "${FLAG}" -ne 0 ] ; then
+	FAILED_NUM_CHK="${FAILED_NUM_CHK}:${NUM_CHK}"
+else
+	SUCCESS_NUM_CHK="${SUCCESS_NUM_CHK}:${NUM_CHK}"
+fi
+NUM_CHK=""
+}
+
+#############################################################################
+# Function to set strong password creation policies
+#############################################################################
+set_strong_passwd_Linux_set_fn()
+{
+NUM_CHK="$1"
+FLAG=0
+if [ ! -f "${PAM_FILE}" ] ; then 
+	touch ${PAM_FILE}
+fi
+	${ECHO_CMD} "\nCOMMAND: cat $PAM_FILE | egrep -v '^#' | egrep  'minlen=8'| egrep 'lcredit=-1'| egrep 'ocredit=-1'| egrep 'dcredit=-1'|egrep 'reject_username'\n" | tee -a ${DATA_FILE}
+	cat $PAM_FILE | egrep -v "^#" | egrep  "minlen=8"| egrep "lcredit=-1"| egrep "ocredit=-1"| egrep "dcredit=-1"|egrep "reject_username"  >/dev/null
+	if [ $? -ne 0 ] ; then
+		${ECHO_CMD} "${NORM}CURRENT VALUE: AS PER EXPECTED VALUE, Password policy parameters ( MINLEN,LOWERCASE and etc ) are set${NORM}" 
+		#commenting out the lines which contains the patterns
+		#cat $file | egrep -v "^#" | egrep "minlen|lcredit|ocredit|dcredit|reject_username" | sed -i "s/^/#/"  2>/dev/null
+		sed -i.bak "s/^password.*pam_cracklib.so.*/#&/g" "${PAM_FILE}"
+		${ECHO_CMD} "password    requisite     pam_cracklib.so try_first_pass retry=5 minlen=8,dcredit=-1,ucredit=-1,ocredit=-1 lcredit=-1 reject_username gecoscheck" >> ${PAM_FILE}
+		${ECHO_CMD} "${NORM}EXPECTED VALUE: Password policy parameters ( MINLEN,LOWERCASE and etc) should be set as expected${NORM}" | tee -a ${DATA_FILE}
+		FLAG=0
+		${ECHO_CMD} "\nOUTPUT: `cat $PAM_FILE | egrep -v '^#' | egrep  'minlen=8'| egrep 'lcredit=-1'| egrep 'ocredit=-1'| egrep 'dcredit=-1'|egrep 'reject_username'`" | tee -a ${DATA_FILE}
+	else
+		${ECHO_CMD} "${NORM}CURRENT VALUE: AS PER EXPECTED VALUE, Password policy parameters ( MINLEN,LOWERCASE and etc ) are set${NORM}" 
+		${ECHO_CMD} "${NORM}EXPECTED VALUE: Password policy parameters ( MINLEN,LOWERCASE and etc) should be set${NORM}" | tee -a ${DATA_FILE}
+		${ECHO_CMD} "\nOUTPUT: `cat $PAM_FILE | egrep -v '^#' | egrep  'minlen=8'| egrep 'lcredit=-1'| egrep 'ocredit=-1'| egrep 'dcredit=-1'|egrep 'reject_username'`" | tee -a ${DATA_FILE}
+	fi
+
+	${ECHO_CMD} "\nCOMMAND: cat $PAM_FILE | egrep -v '^#' | egrep  'remember=6'\n" | tee -a ${DATA_FILE}
+	cat $PAM_FILE | egrep -v "^#" | egrep  "remember=6"  >/dev/null
+	if [ $? -ne 0 ] ; then
+		${ECHO_CMD} "${NORM}CURRENT VALUE: AS PER EXPECTED VALUE, Password REUSAGE Parameter is set${NORM}" | tee -a ${DATA_FILE}
+		sed -i.bak "s/^password.*pam_unix.so.*/#&/g" "${PAM_FILE}"
+		${ECHO_CMD} "password    sufficient   pam_unix.so md5 shadow nullok try_first_pass use_authtok remember=6" >> ${PAM_FILE}
+		${ECHO_CMD} "${NORM}EXPECTED VALUE: Password REUSAGE Parameter is set${NORM}" | tee -a ${DATA_FILE}
+		${ECHO_CMD} "\nOUTPUT: `cat $PAM_FILE | egrep -v '^#' | egrep  'remember=6'`" | tee -a ${DATA_FILE}
+		FLAG=0
+	else
+		${ECHO_CMD} "${NORM}CURRENT VALUE: AS PER EXPECTED VALUE, Password REUSAGE Parameter is set${NORM}" | tee -a ${DATA_FILE}
+		${ECHO_CMD} "${NORM}EXPECTED VALUE: Password REUSAGE Parameter should be set${NORM}" | tee -a ${DATA_FILE}
+		${ECHO_CMD} "\nOUTPUT: `cat $PAM_FILE | egrep -v '^#' | egrep  'remember=6'`" | tee -a ${DATA_FILE}
+	fi
+	
+	${ECHO_CMD} "\nCOMMAND: cat $PASSWORD_POLICY | egrep -v '^#' | egrep  'PASS_MAX_DAYS'\n" | tee -a ${DATA_FILE}
+	cat $PASSWORD_POLICY  | egrep -v "^#" | egrep "PASS_MAX_DAYS" | grep "175" >/dev/null
+	if [ $? -ne 0 ] ; then
+		${ECHO_CMD} "${NORM}CURRENT VALUE: AS PER EXPECTED VALUE, Password EXPIRY DAYS Parameter is set${NORM}" | tee -a ${DATA_FILE}
+		#commenting out the lines which contains the patterns
+		sed -i.bak "s/^PASS_MAX_DAYS/#&/g" "$PASSWORD_POLICY"
+		# add the line with pattern
+		${ECHO_CMD} "PASS_MAX_DAYS 175" >> $PASSWORD_POLICY
+		${ECHO_CMD} "${NORM}EXPECTED VALUE: Password EXPIRY DAYS Parameter is set${NORM}" | tee -a ${DATA_FILE}
+		${ECHO_CMD} "\nOUTPUT: `cat $PASSWORD_POLICY | egrep -v '^#' | egrep  'PASS_MAX_DAYS'`" | tee -a ${DATA_FILE}
+		FLAG=0
+	else
+		${ECHO_CMD} "${NORM}CURRENT VALUE: AS PER EXPECTED VALUE, Password EXPIRY DAYS Parameter is set${NORM}" | tee -a ${DATA_FILE}
+		${ECHO_CMD} "${NORM}EXPECTED VALUE: Password EXPIRY DAYS Parameter should be set${NORM}"
+		${ECHO_CMD} "\nOUTPUT: `cat $PASSWORD_POLICY | egrep -v '^#' | egrep  'PASS_MAX_DAYS'`" | tee -a ${DATA_FILE}
+	fi
+	
+	${ECHO_CMD} "\nCOMMAND: cat $PASSWORD_POLICY | egrep -v '^#' | egrep  'PASS_WARN_AGE'\n" | tee -a ${DATA_FILE}
+	cat $PASSWORD_POLICY  | egrep -v "^#" | egrep "PASS_WARN_AGE" | grep "30"  >/dev/null
+	if [ $? -ne 0 ] ; then
+		${ECHO_CMD} "${NORM}CURRENT VALUE: AS PER EXPECTED VALUE, Password WARN AGE Parameter is set${NORM}" | tee -a ${DATA_FILE}
+		#commenting out the lines which contains the patterns
+		sed -i.bak "s/^PASS_WARN_AGE/#&/g" "$PASSWORD_POLICY"
+		# add the line with pattern
+		${ECHO_CMD} "PASS_WARN_AGE 30" >> $PASSWORD_POLICY
+		${ECHO_CMD} "${NORM}EXPECTED VALUE: Password WARN AGE Parameter is now set${NORM}" | tee -a ${DATA_FILE}
+		${ECHO_CMD} "\nOUTPUT: `cat $PASSWORD_POLICY | egrep -v '^#' | egrep  'PASS_WARN_AGE'`" | tee -a ${DATA_FILE}
+		FLAG=0
+	else
+		${ECHO_CMD} "${NORM}CURRENT VALUE: AS PER EXPECTED VALUE, Password WARN AGE Parameter is set${NORM}" | tee -a ${DATA_FILE}
+		${ECHO_CMD} "${NORM}EXPECTED VALUE: Password WARN AGE Parameter should be set${NORM}" | tee -a ${DATA_FILE}
+		${ECHO_CMD} "\nOUTPUT: `cat $PASSWORD_POLICY | egrep -v '^#' | egrep  'PASS_WARN_AGE'`" | tee -a ${DATA_FILE}
+	fi
+
+if [ "${FLAG}" -ne 0 ] ; then
+	FAILED_NUM_CHK="${FAILED_NUM_CHK}:${NUM_CHK}"
+else
+	SUCCESS_NUM_CHK="${SUCCESS_NUM_CHK}:${NUM_CHK}"
+fi
+NUM_CHK=""
+}
+
+#############################################################################
+# Function to Verify no UID 0 accounts exist other than the "root" user
+#############################################################################
+duplicate_uid_verify_fn()
+{
+NUM_CHK="$1"
+
+${ECHO_CMD} "\nCOMMAND: cat ${USER_FILE} | awk -F: '(\$3 == 0) { print \$1 }' | grep -v root\n" | tee -a ${DATA_FILE}
+DUID=`cat ${USER_FILE} | awk -F: '($3 == 0) { print $1 }' | grep -v root`
+if [ -z "$DUID" ] ; then
+	${ECHO_CMD} "${NORM}CURRENT VALUE: AS PER EXPECTED VALUE, None of the user has ID 0 other than Root${NORM}" | tee -a ${DATA_FILE}
+	${ECHO_CMD} "${NORM}EXPECTED VALUE: None of the user should have UID 0 other than Root${NORM}" | tee -a ${DATA_FILE}
+	SUCCESS_NUM_CHK="${SUCCESS_NUM_CHK}:${NUM_CHK}"
+else
+	${ECHO_CMD} "${NORM}CURRENT VALUE: AS PER EXPECTED VALUE, User $DUID has ID 0 other than Root${NORM}" | tee -a ${DATA_FILE}
+	${ECHO_CMD} "${NORM}EXPECTED VALUE: None of the user should have UID 0 other than Root${NORM}" | tee -a ${DATA_FILE}
+	FAILED_NUM_CHK="${FAILED_NUM_CHK}:${NUM_CHK}"
+fi
+
+${ECHO_CMD} "\nOUTPUT: \n`cat ${USER_FILE} | awk -F: '(\$3 == 0) { print \$1 }' | grep -v root`" | tee -a ${DATA_FILE}
+NUM_CHK=""
+}
+
+#############################################################################
+# Function to lock the user if any UID 0 accounts exist other than the "root"
+#############################################################################
+duplicate_uid_set_fn()
+{
+NUM_CHK="$1"
+${ECHO_CMD} "\nCOMMAND: cat ${USER_FILE} | awk -F: '(\$3 == 0) { print \$1 }' | grep -v root\n" | tee -a ${DATA_FILE}
+
+DUID=`cat ${USER_FILE} | awk -F: '($3 == 0) { print $1 }' | grep -v root`
+if [ -z "${DUID}" ] ; then
+	${ECHO_CMD} "${NORM}CURRENT VALUE: AS PER EXPECTED VALUE, None of the user has ID 0 other than Root${NORM}" | tee -a ${DATA_FILE}
+	${ECHO_CMD} "${NORM}EXPECTED VALUE: None of the user should have UID 0 other than Root ${NORM}" | tee -a ${DATA_FILE}
+	SUCCESS_NUM_CHK="${SUCCESS_NUM_CHK}:${NUM_CHK}"
+else
+	${ECHO_CMD} "${NORM}CURRENT VALUE: AS PER EXPECTED VALUE, User $DUID has ID 0 other than Root${NORM}" | tee -a ${DATA_FILE}
+	# lock or delete the user
+	passwd -l $DUID
+	${ECHO_CMD} "${NORM}EXPECTED VALUE: Locked the user $$DUID due to have UID of DID 0${NORM}" | tee -a ${DATA_FILE}
+	SUCCESS_NUM_CHK="${SUCCESS_NUM_CHK}:${NUM_CHK}"
+fi
+
+
+${ECHO_CMD} "\nOUTPUT: \n`cat ${USER_FILE} | awk -F: '(\$3 == 0) { print \$1 }' | grep -v root`" | tee -a ${DATA_FILE}
+NUM_CHK=""
+}
+
+#############################################################################
+# Restrict root Login to System Console
+#############################################################################
+restrict_root_login_verify_fn()
+{
+NUM_CHK="$1"
+if [ "${OS}" = "Linux" ] ||  [ "${OS}" = "HP-UX" ] ; then
+	${ECHO_CMD} "\nCOMMAND: cat ${ETC_SECURETTY}| grep -v '#'\n" | tee -a ${DATA_FILE}
+	TOTAL_LINE_COUNT=`cat ${ETC_SECURETTY} 2>/dev/null | egrep -v "^#|^$"  | wc -l`
+	PATERN_LINE_COUNT=`cat ${ETC_SECURETTY} 2>/dev/null | egrep -v "^#|^$" | egrep "^console$" | wc -l`
+	#compare the total lines { without comments or without empty lines}  with the line containing only "console"
+	if [ "${TOTAL_LINE_COUNT}" -eq "${PATERN_LINE_COUNT}" ] && [ "${PATERN_LINE_COUNT}" -eq 1 ]; then
+		${ECHO_CMD} "${NORM}CURRENT VALUE: AS PER EXPECTED VALUE, FILE ${ETC_SECURETTY} has one line \"console\"${NORM}" | tee -a ${DATA_FILE}
+		${ECHO_CMD} "${NORM}EXPECTED VALUE: FILE ${ETC_SECURETTY} should have only one line \"console\"${NORM}" | tee -a ${DATA_FILE}
+		SUCCESS_NUM_CHK="${SUCCESS_NUM_CHK}:${NUM_CHK}"		
+	else
+		${ECHO_CMD} "${NORM}CURRENT VALUE: NOT AS PER EXPECTED VALUE, FILE ${ETC_SECURETTY} has other keyword than console.${NORM}" | tee -a ${DATA_FILE}
+		${ECHO_CMD} "${NORM}EXPECTED VALUE: FILE ${ETC_SECURETTY} should have only one line \"console\"${NORM}" | tee -a ${DATA_FILE}
+		FAILED_NUM_CHK="${FAILED_NUM_CHK}:${NUM_CHK}"
+	fi
+	${ECHO_CMD} "\nOUTPUT: `cat ${ETC_SECURETTY}| grep -v '^#'`" | tee -a ${DATA_FILE}
+elif [ "${OS}" = "SunOS"  ] ; then
+	${ECHO_CMD} "\nCOMMAND: cat ${ETC_SECURETTY}| grep -v '^#'\n" | tee -a ${DATA_FILE}
+	cat ${ETC_SECURETTY} 2>/dev/null | egrep -v '^#' | grep -i "^CONSOLE=/dev/console$"
+	if [ $? -eq 0 ] ; then
+		${ECHO_CMD} "${NORM}CURRENT VALUE: NOT AS PER EXPECTED VALUE, FILE ${ETC_SECURETTY} has other keyword than console.${NORM}" | tee -a ${DATA_FILE}
+		${ECHO_CMD} "${NORM}EXPECTED VALUE: FILE ${ETC_SECURETTY} should have only one keyword \"console\" in it.${NORM}" | tee -a ${DATA_FILE}
+		FAILED_NUM_CHK="${FAILED_NUM_CHK}:${NUM_CHK}"
+	else
+		${ECHO_CMD} "${NORM}CURRENT VALUE: AS PER EXPECTED VALUE, \"console\" keyword is set in file ${ETC_SECURETTY}${NORM}" | tee -a ${DATA_FILE}
+		${ECHO_CMD} "${NORM}EXPECTED VALUE: FILE ${ETC_SECURETTY} should have only one keyword \"console\" in it.${NORM}" | tee -a ${DATA_FILE}
+		SUCCESS_NUM_CHK="${SUCCESS_NUM_CHK}:${NUM_CHK}"
+	fi
+	${ECHO_CMD} "\nOUTPUT: `cat ${ETC_SECURETTY}| grep -v '^#'`" | tee -a ${DATA_FILE}
+fi
+
+#Check file perm and ownership
+fileperm_verify_fn "-r--------" "root" "root" "${ETC_SECURETTY}" "400" "${NUM_CHK}"
+NUM_CHK=""
+
+}
+
+#############################################################################
+# Repair function to restrict root Login to System Console
+#############################################################################
+restrict_root_login_set_fn()
+{
+NUM_CHK="$1"
+if [ "${OS}" = "Linux" ] ||  [ "${OS}" = "HP-UX" ] ; then
+	${ECHO_CMD} "\nCOMMAND: cat ${ETC_SECURETTY}| grep -v '^#'\n" | tee -a ${DATA_FILE}
+	#compare the total lines , the lines without comments or non blank lines VS the lines containing only either console or tty
+	TOTAL_LINE_COUNT=`cat ${ETC_SECURETTY} 2>/dev/null | egrep -v "^#|^$"  | wc -l`
+	PATERN_LINE_COUNT=`cat ${ETC_SECURETTY} 2>/dev/null | egrep -v "^#|^$" | egrep "^console$" | wc -l`
+	if [ "${TOTAL_LINE_COUNT}" -eq "${PATERN_LINE_COUNT}" ]  && [ "${PATERN_LINE_COUNT}" -eq 1 ]; then
+		${ECHO_CMD} "${NORM}CURRENT VALUE: AS PER EXPECTED VALUE, \"console\" keyword is set in file ${ETC_SECURETTY}${NORM}\n" | tee -a ${DATA_FILE}
+		${ECHO_CMD} "${NORM}EXPECTED VALUE: FILE ${ETC_SECURETTY} has changed such hat it has only one keyword \"console\" in it.${NORM}\n" | tee -a ${DATA_FILE}
+		SUCCESS_NUM_CHK="${SUCCESS_NUM_CHK}:${NUM_CHK}"
+	else
+		${ECHO_CMD} "${NORM}CURRENT VALUE: AS PER EXPECTED VALUE, \"console\" keyword is set in file ${ETC_SECURETTY}${NORM}\n" | tee -a ${DATA_FILE}
+		${ECHO_CMD} "${NORM}EXPECTED VALUE: FILE ${ETC_SECURETTY} should have only one keyword \"console\" in it.${NORM}\n" | tee -a ${DATA_FILE}
+		${ECHO_CMD} "console" >${ETC_SECURETTY}
+		SUCCESS_NUM_CHK="${SUCCESS_NUM_CHK}:${NUM_CHK}"
+	fi
+	${ECHO_CMD} "\nOUTPUT: `cat ${ETC_SECURETTY}| grep -v '^#'`" | tee -a ${DATA_FILE}
+elif [ "${OS}" = "SunOS"  ] ; then
+	${ECHO_CMD} "\nCOMMAND: cat ${ETC_SECURETTY}| grep -v '#'\n" | tee -a ${DATA_FILE}
+	cat ${ETC_SECURETTY} 2>/dev/null | egrep -v '^#' | grep -i "^CONSOLE=/dev/console$"
+	if [ $? -eq 0 ] ; then
+		${ECHO_CMD} "${NORM}CURRENT VALUE: AS PER EXPECTED VALUE, \"console\" keyword is set in file ${ETC_SECURETTY}${NORM}\n" | tee -a ${DATA_FILE}
+		${ECHO_CMD} "${NORM}EXPECTED VALUE: FILE ${ETC_SECURETTY} should have only one keyword \"console\" in it.${NORM}\n" | tee -a ${DATA_FILE}
+		SUCCESS_NUM_CHK="${SUCCESS_NUM_CHK}:${NUM_CHK}"
+	else
+		${ECHO_CMD} "${NORM}CURRENT VALUE: AS PER EXPECTED VALUE, \"console\" keyword is set in file ${ETC_SECURETTY}${NORM}\n" | tee -a ${DATA_FILE}
+		${ECHO_CMD} "CONSOLE=/dev/console" > ${ETC_SECURETTY}
+		${ECHO_CMD} "${NORM}EXPECTED VALUE: FILE ${ETC_SECURETTY} has changed such hat it has only one keyword \"console\" in it.${NORM}\n" | tee -a ${DATA_FILE}
+		SUCCESS_NUM_CHK="${SUCCESS_NUM_CHK}:${NUM_CHK}"
+	fi
+	${ECHO_CMD} "\nOUTPUT: `cat ${ETC_SECURETTY}| grep -v '^#'`" | tee -a ${DATA_FILE}
+fi
+
+#Set file perm and ownership
+fileperm_set_fn "-r--------" "root" "root" "${ETC_SECURETTY}" "400" "${NUM_CHK}"
+NUM_CHK=""
+}
+
+#############################################################################
+# Find the home directory of all normal users. Display if .netrc, .rhosts & .shosts files are present
+#############################################################################
+rhosts_netrc_shosts_verify_fn()
+{
+NUM_CHK="$1"
+FLAG=0
+
+#Find the home directory of all normal users
+#cat ${USER_FILE} | awk -F":" '{ if ( $3 >= 500 ) print $6 }' | while read HOMEDIR 2>/dev/null
+${ECHO_CMD} "\nCOMMAND: ls -la <<HOMEDIR of userid>> | egrep -w '.netrc|.shosts|.rhosts'\n" | tee -a ${DATA_FILE}
+while read line
+do
+	HOMEDIR=`echo $line | awk -F":" '{ if ($3>=500 && $7!="/sbin/nologin" && $7!="/usr/bin/false") print $6 }'`
+	if [ -n "${HOMEDIR}" ] ; then
+		for H in $HOMEDIR/.netrc $HOMEDIR/.rhosts $HOMEDIR/.shosts
+		do
+			if [ -f "${H}" ]  ; then
+				${ECHO_CMD} "${NORM}CURRENT VALUE: NOT AS PER EXPECTED VALUE, ${H} is present${NORM}" | tee -a ${DATA_FILE}
+				FLAG=1
+				${ECHO_CMD} "${NORM}EXPECTED VALUE: Files .netrc, .rhosts & .shosts shouldn't be found in user's Home directory${NORM}" | tee -a ${DATA_FILE}
+				${ECHO_CMD} "\nOUTPUT: `ls -la ${H}`" | tee -a ${DATA_FILE}
+			else
+				${ECHO_CMD} "${NORM}CURRENT VALUE: AS PER EXPECTED VALUE, ${H} is not present${NORM}" >/dev/null
+			fi
+		done
+	fi
+done<${USER_FILE}
+
+if [ "${FLAG}" -ne 0 ] ; then
+	FAILED_NUM_CHK="${FAILED_NUM_CHK}:${NUM_CHK}"
+else
+	SUCCESS_NUM_CHK="${SUCCESS_NUM_CHK}:${NUM_CHK}"
+	${ECHO_CMD} "${NORM}CURRENT VALUE: AS PER EXPECTED VALUE, Files .netrc, .rhosts & .shosts are not found under user's home directory${NORM}" | tee -a ${DATA_FILE}
+	${ECHO_CMD} "${NORM}EXPECTED VALUE: Files .netrc, .rhosts & .shosts shouldn't be found in user's Home directory${NORM}" | tee -a ${DATA_FILE}
+	${ECHO_CMD} "\nOUTPUT: " | tee -a ${DATA_FILE}
+fi
+NUM_CHK=""
+}
+
+#############################################################################
+# Find the home directory of all normal users. Remove if any .netrc, .rhosts & .shosts files are present
+#############################################################################
+rhosts_netrc_shosts_set_fn()
+{
+NUM_CHK="$1"
+FLAG=0
+
+${ECHO_CMD} "\nCOMMAND: ls -la <<HOMEDIR of userid>> | egrep -w '.netrc|.shosts|.rhosts'\n" | tee -a ${DATA_FILE}
+while read line
+do
+	HOMEDIR=`echo $line | awk -F":" '{ if ($3>=500 && $7!="/sbin/nologin" && $7!="/usr/bin/false") print $6 }'`	
+	if [ -n "${HOMEDIR}" ] ; then
+		for H in $HOMEDIR/.netrc $HOMEDIR/.rhosts $HOMEDIR/.shosts
+		do
+			if [ -f "${H}" ]  ; then
+				${ECHO_CMD} "${NORM}CURRENT VALUE: AS PER EXPECTED VALUE, ${H} is present${NORM}" | tee -a ${DATA_FILE}
+				rm -f ${H} && ${ECHO_CMD} "${NORM}EXPECTED VALUE: ${H} is removed. Files .netrc, .rhosts & .shosts shouldn't be found in user's Home${NORM}" | tee -a ${DATA_FILE}
+				FLAG=0
+				${ECHO_CMD} "\nOUTPUT: `ls -la ${H}`" | tee -a ${DATA_FILE}
+			else
+				${ECHO_CMD} "${NORM}CURRENT VALUE: AS PER EXPECTED VALUE, ${H} is not present${NORM}" >/dev/null
+			fi
+		done
+	fi
+done<${USER_FILE}
+
+if [ "${FLAG}" -ne 0 ] ; then
+	FAILED_NUM_CHK="${FAILED_NUM_CHK}:${NUM_CHK}"
+else
+	SUCCESS_NUM_CHK="${SUCCESS_NUM_CHK}:${NUM_CHK}"
+	${ECHO_CMD} "${NORM}CURRENT VALUE: AS PER EXPECTED VALUE, Files .netrc, .rhosts & .shosts are not found under user's home directory${NORM}" | tee -a ${DATA_FILE}
+	${ECHO_CMD} "${NORM}EXPECTED VALUE: Files .netrc, .rhosts & .shosts shouldn't be found in user's Home directory${NORM}" | tee -a ${DATA_FILE}
+	${ECHO_CMD} "\nOUTPUT: " | tee -a ${DATA_FILE}
+fi
+NUM_CHK=""
+}
+
+#############################################################################
+# verify the whether all users has home directory
+#############################################################################
+home_dir_verify_fn()
+{
+NUM_CHK="$1"
+FLAG=0
+
+${ECHO_CMD} "\nCOMMAND: awk -F: '{if(\$6==\"\") print \$0}' ${USER_FILE}\n" | tee -a ${DATA_FILE} 
+while read line
+do
+	USER=`echo $line | awk -F":" '!/nonexistent/ {if($3>=500 && $7!="/sbin/nologin" && $7!="/usr/bin/false") {print $1}}'`
+	HOMEDIR=`echo $line | awk -F":" '!/nonexistent/ {if($3>=500 && $7!="/sbin/nologin" && $7!="/usr/bin/false") {print $6}}'`
+	if [ -n "${HOMEDIR}" ] ; then
+		if [ ! -d "${HOMEDIR}" ] ; then
+			${ECHO_CMD} "${NORM}CURRENT VALUE: NOT AS PER EXPECTED VALUE, Home dir of \"${USER}\" is not found${NORM}" | tee -a ${DATA_FILE}
+			FLAG=1			
+		else
+			${ECHO_CMD} "${NORM}CURRENT VALUE: Home dir of \"${USER}\" is \"${HOMEDIR}\"${NORM}" >/dev/null
+		fi
+	fi
+done<${USER_FILE}
+
+if [ "${FLAG}" -ne 0 ] ; then
+	FAILED_NUM_CHK="${FAILED_NUM_CHK}:${NUM_CHK}"
+	${ECHO_CMD} "${NORM}EXPECTED VALUE: Every user should have Home dir${NORM}" | tee -a ${DATA_FILE}
+else
+	SUCCESS_NUM_CHK="${SUCCESS_NUM_CHK}:${NUM_CHK}"
+	${ECHO_CMD} "${NORM}CURRENT VALUE: AS PER EXPECTED VALUE, All users have home directory${NORM}" | tee -a ${DATA_FILE}
+	${ECHO_CMD} "${NORM}EXPECTED VALUE: Every user should have Home dir${NORM}" | tee -a ${DATA_FILE}
+fi
+${ECHO_CMD} "\nOUTPUT: `awk -F: '{if(\$6==\"\") print \$0}' ${USER_FILE}`" | tee -a ${DATA_FILE}
+
+${ECHO_CMD} "\nCOMMAND: Displaying the home directories of users starting with adm and svcppm. Command is \"ls -ld <<HOME DIR OF USER>>\""  | tee -a ${DATA_FILE}
+${ECHO_CMD} "\nOUTPUT:"
+awk -F: '{if(  $1~/^adm[stp]./ || $1=/^svcppm/ ) {print $6}}'  ${USER_FILE}  | xargs ls -ld 2>/dev/null
+NUM_CHK=""
+}
+
+#############################################################################
+# Create home directory if any user  doesn't have home directory
+#############################################################################
+home_dir_set_fn()
+{
+NUM_CHK="$1"
+FLAG=0
+
+${ECHO_CMD} "\nCOMMAND: awk -F: '{if(\$6==\"\") print \$0}' ${USER_FILE}\n" | tee -a ${DATA_FILE} 
+while read line
+do
+	USER=`echo $line | awk -F":" '!/nonexistent/ {if($3>=500 && $7!="/sbin/nologin" && $7!="/usr/bin/false") {print $1}}'`
+	HOMEDIR=`echo $line | awk -F":" '!/nonexistent/ {if($3>=500 && $7!="/sbin/nologin" && $7!="/usr/bin/false") {print $6}}'`
+	if [ -n "${HOMEDIR}" ] ; then
+		if [ ! -d "${HOMEDIR}" ] ; then
+			${ECHO_CMD} "${NORM}CURRENT VALUE: NOT AS PER EXPECTED VALUE, Home dir of \"${USER}\" is not found${NORM}" | tee -a ${DATA_FILE}
+			usermod -d /home/${USER} ${USER}
+			FLAG=0
+		else
+			${ECHO_CMD} "${NORM}CURRENT VALUE: Home dir of \"${USER}\" is \"${HOMEDIR}\"${NORM}" >/dev/null
+		fi
+	fi
+done<${USER_FILE}
+
+if [ ${FLAG} -ne 0 ] ; then
+	FAILED_NUM_CHK="${FAILED_NUM_CHK}:${NUM_CHK}"
+	${ECHO_CMD} "${NORM}EXPECTED VALUE: Every user should have Home dir${NORM}" | tee -a ${DATA_FILE}
+else
+	SUCCESS_NUM_CHK="${SUCCESS_NUM_CHK}:${NUM_CHK}"
+	${ECHO_CMD} "${NORM}CURRENT VALUE: AS PER EXPECTED VALUE, All users have home directory${NORM}" | tee -a ${DATA_FILE}
+	${ECHO_CMD} "${NORM}EXPECTED VALUE: Every user should have Home dir${NORM}" | tee -a ${DATA_FILE}
+fi
+${ECHO_CMD} "\nOUTPUT: `awk -F: '{if(\$6==\"\") print \$0}' ${USER_FILE}`" | tee -a ${DATA_FILE}
+
+${ECHO_CMD} "\nCOMMAND: Displaying the home directories of users starting with adm and svcppm. Command is \"ls -ld <<HOME DIR OF USER>>\""  | tee -a ${DATA_FILE}
+${ECHO_CMD} "\nOUTPUT:"
+awk -F: '{if(  $1~/^adm[stp]./  || $1=/^svcppm/ ) {print $6}}'  ${USER_FILE}  | xargs ls -ld 2>/dev/null
+NUM_CHK=""
+}
+
+#############################################################################
+# Function to Verify whether duplicate user names, UID, Group nmaes, GID's are exists
+#############################################################################
+DID_verify_fn()
+{
+Case_Option="$1"
+NUM_CHK="$2"
+
+case ${Case_Option} in
+	GID)
+	${ECHO_CMD} "\nCOMMAND: cut -d ':' -f3 ${GROUP_FILE}|sort -n|uniq -d\n" | tee -a ${DATA_FILE}
+	Duplicate_Gid=`cut -d ':' -f3 ${GROUP_FILE}|sort -n|uniq -d`
+	if [ ! -z "${Duplicate_Gid}" ] ; then
+		${ECHO_CMD} "${NORM}CURRENT VALUE: NOT AS PER EXPECTED VALUE, dublicate gid found in a system${NORM}" | tee -a ${DATA_FILE}
+		${ECHO_CMD} "${NORM}EXPECTED VALUE: No Duplicate GIDs should be found${NORM}" | tee -a ${DATA_FILE}
+		${ECHO_CMD} "\nOUTPUT: `grep -w ${Duplicate_Gid} ${GROUP_FILE}|cut -d ':' -f1,3|sort|uniq`" | tee -a ${DATA_FILE}
+		FAILED_NUM_CHK="${FAILED_NUM_CHK}:${NUM_CHK}"
+	else
+		${ECHO_CMD} "${NORM}CURRENT VALUE: AS PER EXPECTED VALUE, no duplicate gid found in the system${NORM}" | tee -a ${DATA_FILE}
+		${ECHO_CMD} "${NORM}EXPECTED VALUE: No Duplicate GIDs should be found${NORM}" | tee -a ${DATA_FILE}
+		${ECHO_CMD} "\nOUTPUT: `cut -d ':' -f3 ${GROUP_FILE}|sort -n|uniq -d`" | tee -a ${DATA_FILE}
+		SUCCESS_NUM_CHK="${SUCCESS_NUM_CHK}:${NUM_CHK}"
+	fi 
+	;;
+
+	UID)
+	${ECHO_CMD} "\nCOMMAND: cut -d ':' -f3 ${USER_FILE}|sort -n|uniq -d\n" | tee -a ${DATA_FILE}
+	Duplicate_Uid=`cut -d ":" -f3 ${USER_FILE}|sort -n|uniq -d`
+	if [ ! -z "${Duplicate_Uid}" ] ; then
+		${ECHO_CMD} "${NORM}CURRENT VALUE: NOT AS PER EXPECTED VALUE, duplicate uid found in a system${NORM}" | tee -a ${DATA_FILE}
+		${ECHO_CMD} "${NORM}EXPECTED VALUE: No Duplicate UIDs should be found${NORM}" | tee -a ${DATA_FILE}
+		${ECHO_CMD} "\nOUTPUT: `grep -w ${Duplicate_Uid} ${USER_FILE}|cut -d ':' -f1,3|sort|uniq`" | tee -a ${DATA_FILE}
+		FAILED_NUM_CHK="${FAILED_NUM_CHK}:${NUM_CHK}"
+	else
+		${ECHO_CMD} "${NORM}CURRENT VALUE: AS PER EXPECTED VALUE, no duplicate uid found in the system${NORM}" | tee -a ${DATA_FILE}
+		${ECHO_CMD} "${NORM}EXPECTED VALUE: No Duplicate UIDs should be found${NORM}" | tee -a ${DATA_FILE}
+		${ECHO_CMD} "\nOUTPUT: `cut -d ':' -f3 ${USER_FILE}|sort -n|uniq -d`" | tee -a ${DATA_FILE}
+		SUCCESS_NUM_CHK="${SUCCESS_NUM_CHK}:${NUM_CHK}"
+	fi 
+	;;
+	
+	USERNAME)
+	${ECHO_CMD} "\nCOMMAND: cut -d ':' -f1 ${USER_FILE}|sort|uniq -d\n" | tee -a ${DATA_FILE}
+	Duplicate_Name=`cut -d ":" -f1 ${USER_FILE}|sort|uniq -d`
+	if [ ! -z "${Duplicate_Name}"  ] ; then
+		${ECHO_CMD} "${NORM}CURRENT VALUE: NOT AS PER EXPECTED VALUE, duplicate name found in a system${NORM}" | tee -a ${DATA_FILE}
+		${ECHO_CMD} "${NORM}EXPECTED VALUE: No Duplicate user names should be found${NORM}" | tee -a ${DATA_FILE}
+		${ECHO_CMD} "\nOUTPUT: `cut -d ':' -f1 ${USER_FILE}|sort|uniq -d`" | tee -a ${DATA_FILE}
+		FAILED_NUM_CHK="${FAILED_NUM_CHK}:${NUM_CHK}"
+	else
+		${ECHO_CMD} "${NORM}CURRENT VALUE: AS PER EXPECTED VALUE, no duplicate name found in the system${NORM}" | tee -a ${DATA_FILE}
+		${ECHO_CMD} "${NORM}EXPECTED VALUE: No Duplicate user names should be found${NORM}" | tee -a ${DATA_FILE}
+		${ECHO_CMD} "\nOUTPUT: `cut -d ':' -f1 ${USER_FILE}|sort|uniq -d`" | tee -a ${DATA_FILE}
+		SUCCESS_NUM_CHK="${SUCCESS_NUM_CHK}:${NUM_CHK}"
+	fi 
+	;;
+	
+	GROUPNAME)
+	${ECHO_CMD} "\nCOMMAND: cut -d ':' -f1 ${GROUP_FILE}|sort|uniq -d\n" | tee -a ${DATA_FILE}
+	Duplicate_GName=`cut -d ":" -f1 ${GROUP_FILE}|sort|uniq -d`
+	if [ ! -z "${Duplicate_GName}" ] ;then
+		${ECHO_CMD} "${NORM}CURRENT VALUE: NOT AS PER EXPECTED VALUE, duplicate group found in a system${NORM}" | tee -a ${DATA_FILE}
+		${ECHO_CMD} "${NORM}EXPECTED VALUE: No Duplicate Group names should be found${NORM}" | tee -a ${DATA_FILE} 
+		${ECHO_CMD} "${NORM}DUPLICATE GROUP: NAME found for, ${Duplicate_GName}${NORM}" | tee -a ${DATA_FILE}
+		${ECHO_CMD} "\nOUTPUT: `cut -d ':' -f1 ${GROUP_FILE}|sort|uniq -d`" | tee -a ${DATA_FILE}
+		FAILED_NUM_CHK="${FAILED_NUM_CHK}:${NUM_CHK}"
+	else
+		${ECHO_CMD} "${NORM}CURRENT VALUE: AS PER EXPECTED VALUE,  no duplicate group name found in the system${NORM}" | tee -a ${DATA_FILE}
+		${ECHO_CMD} "${NORM}EXPECTED VALUE: No Duplicate Group names should be found${NORM}" | tee -a ${DATA_FILE} 
+		${ECHO_CMD} "\nOUTPUT: `cut -d ':' -f1 ${GROUP_FILE}|sort|uniq -d`" | tee -a ${DATA_FILE}
+		SUCCESS_NUM_CHK="${SUCCESS_NUM_CHK}:${NUM_CHK}"
+	fi 
+	;;
+esac
+NUM_CHK=""
+}
+
+#############################################################################
+# Verify whether sysadmin users are part of sysadmin group. sysadmin GID is 14
+############################################################################
+Check_reserved_ids_verify_fn()
+{
+NUM_CHK="$1"
+FLAG=0
+SYS_GID_GROUP=`egrep '^sysadmin' ${GROUP_FILE} | cut -d ':' -f3`
+${ECHO_CMD} "\nCOMMAND: System users should belongs to \"sysadmin\" group & sysadmin GID is: ${SYS_GID_GROUP}\n" | tee -a ${DATA_FILE}
+
+if [ -z "${SYS_GID_GROUP}" ] ; then
+	${ECHO_CMD} "${NORM}CURRENT VALUE: NOT AS PER EXPECTED VALUE, sysadmin GROUP is not present in ${GROUP_FILE}${NORM}" | tee -a ${DATA_FILE}
+	${ECHO_CMD} "${NORM}EXPECTED VALUE: sysadmin GROUP should be present in ${GROUP_FILE}\n${NORM}" | tee -a ${DATA_FILE}
+	FLAG=1
+else
+	for u in `cat ${USER_FILE} | egrep '^adm[sgt].'`
+	do
+		USER=`echo ${u} |  cut -d ':' -f1`
+		GID=`echo ${u} |  cut -d ':' -f4`
+		#${ECHO_CMD} "user is $USER and GID of user is $GID"
+		if [ ! -z "${USER}" ] && [ ! -z "${GID}" ] ; then
+			if [ "${GID}" -eq "${SYS_GID_GROUP}" ] ; then
+				${ECHO_CMD} "${NORM}CURRENT VALUE: AS PER EXPECTED VALUE, ${USER} is part of GID of SYSADMIN:${SYS_GID_GROUP}${NORM}" | tee -a ${DATA_FILE}
+				${ECHO_CMD} "EXPECTED VALUE: ${USER} should be part of GID of SYSADMIN:${SYS_GID_GROUP}\n" | tee -a ${DATA_FILE}
+			else
+				${ECHO_CMD} "${NORM}CURRENT VALUE: NOT AS PER EXPECTED VALUE, ${USER} is not part of GID of SYSADMIN:${SYS_GID_GROUP}" | tee -a ${DATA_FILE}
+				${ECHO_CMD} "EXPECTED VALUE: ${USER} should be part of GID of SYSADMIN:${SYS_GID_GROUP}\n" | tee -a ${DATA_FILE}
+				FLAG=1
+			fi
+		fi
+	done
+fi
+${ECHO_CMD} "OUTPUT: `egrep '^adm[sgt].' ${USER_FILE} | cut -d':' -f1,4`" | tee -a ${DATA_FILE}
+if [ ${FLAG} -ne 0 ] ; then
+	FAILED_NUM_CHK="${FAILED_NUM_CHK}:${NUM_CHK}"
+else
+	SUCCESS_NUM_CHK="${SUCCESS_NUM_CHK}:${NUM_CHK}"
+fi
+NUM_CHK=""
+}
+
+#############################################################################
+# Verify whether sysadmin users are part of sysadmin group. Adding them if those are not in sysadmin group
+############################################################################
+Check_reserved_ids_set_fn()
+{
+NUM_CHK="$1"
+FLAG=0
+SYS_GID_GROUP=`egrep '^sysadmin' ${GROUP_FILE} | cut -d ':' -f3`
+${ECHO_CMD} "\nCOMMAND: System users should belongs to \"sysadmin\" group & sysadmin GID is: ${SYS_GID_GROUP}\n" | tee -a ${DATA_FILE}
+
+if [ -z "${SYS_GID_GROUP}" ] ; then
+	${ECHO_CMD} "${NORM}CURRENT VALUE: NOT AS PER EXPECTED VALUE, sysadmin GROUP is not present in ${GROUP_FILE}${NORM}" | tee -a ${DATA_FILE}
+	${ECHO_CMD} "${NORM}EXPECTED VALUE: sysadmin GROUP should be present in ${GROUP_FILE}\n${NORM}" | tee -a ${DATA_FILE}
+	FLAG=1
+else
+	for u in `cat ${USER_FILE} | egrep '^adm[sgt].'`
+	do
+		USER=`echo ${u} |  cut -d ':' -f1`
+		GID=`echo ${u} |  cut -d ':' -f4`
+		#${ECHO_CMD} "user is $USER and GID of user is $GID"
+		
+		if [ ! -z "${USER}" ] && [ ! -z "${GID}" ] ; then
+			if [ "${GID}" -eq "${SYS_GID_GROUP}" ] ; then
+				${ECHO_CMD} "${NORM}CURRENT VALUE: AS PER EXPECTED VALUE, ${USER} is part of GID of SYSADMIN:${SYS_GID_GROUP}${NORM}" | tee -a ${DATA_FILE}
+				${ECHO_CMD} "EXPECTED VALUE: ${USER} should be part of GID of SYSADMIN:${SYS_GID_GROUP}\n" | tee -a ${DATA_FILE}
+			else
+				${ECHO_CMD} "${NORM}CURRENT VALUE: NOT AS PER EXPECTED VALUE, ${USER} is not part of GID of SYSADMIN:${SYS_GID_GROUP}" | tee -a ${DATA_FILE}
+				usermod -g sysadmin ${USER} && ${ECHO_CMD} "EXPECTED VALUE: ${USER} is added to GID of SYSADMIN:${SYS_GID_GROUP}\n" | tee -a ${DATA_FILE}
+				FLAG=0
+			fi
+		fi
+	done
+fi
+${ECHO_CMD} "OUTPUT: `egrep '^adm[sgt].' ${USER_FILE} | cut -d':' -f1,4`" | tee -a ${DATA_FILE}
+if [ ${FLAG} -ne 0 ] ; then
+	FAILED_NUM_CHK="${FAILED_NUM_CHK}:${NUM_CHK}"
+else
+	SUCCESS_NUM_CHK="${SUCCESS_NUM_CHK}:${NUM_CHK}"
+fi
+NUM_CHK=""
+}
+
+#############################################################################
+# string_verify_fn() : 
+# This is a generic function used to find a string in a file
+# This is a generic function used to find a parameter and used to find the value of that parameter in a file 
+# Find the Default umask for users is set to 077 in "/etc/profile"
+# syntax :  string_verify_fn "umask" "${ETC_PROFILE}" "077" " " "4.6"
+###########################################################################
+string_verify_fn()
+{
+STRING="$1"
+FILE="$2"
+
+${ECHO_CMD} "\nCOMMAND: cat ${FILE} |  egrep -i \"^${STRING}\"\n" | tee -a ${DATA_FILE}
+if [ $# -le 3 ] ; then
+	NUM_CHK="$3"
+	if [ ! -f  "${FILE}"  ] ; then
+		${ECHO_CMD} "${NORM}CURRENT VALUE: NOT AS PER EXPECTED VALUE, ${FILE} is not present${NORM}" | tee -a ${DATA_FILE}
+		${ECHO_CMD} "${NORM}EXPECTED VALUE: ${FILE} file should be verify to the pattern/string${NORM}" | tee -a ${DATA_FILE}	
+		FAILED_NUM_CHK="${FAILED_NUM_CHK}:${NUM_CHK}"
+		NUM_CHK=""
+		return 1
+	fi
+	# This section is for just greping for a string/pattern in a file and compare with the expected string
+	cat "${FILE}"  | egrep -q "^${STRING}"
+	if [ $? -eq 0 ] ; then
+		${ECHO_CMD} "${NORM}CURRENT VALUE: AS PER EXPECTED VALUE, \"${STRING}\" is set${NORM}" | tee -a ${DATA_FILE}
+		${ECHO_CMD} "${NORM}EXPECTED VALUE: \"${STRING}\" should be set as per expected value${NORM}" | tee -a ${DATA_FILE}
+		SUCCESS_NUM_CHK="${SUCCESS_NUM_CHK}:${NUM_CHK}"		
+	else
+		${ECHO_CMD} "${NORM}CURRENT VALUE: NOT AS PER EXPECTED VALUE, \"${STRING}\" is not set${NORM}" | tee -a ${DATA_FILE}
+		${ECHO_CMD} "${NORM}EXPECTED VALUE: \"${STRING}\" should be set as per expected value${NORM}" | tee -a ${DATA_FILE}
+		FAILED_NUM_CHK="${FAILED_NUM_CHK}:${NUM_CHK}"
+	fi
+else
+	VALUE="$3"
+	DELIMITER="$4"
+	NUM_CHK="$5"
+	if [ ! -f  "${FILE}"  ] ; then
+		${ECHO_CMD} "${NORM}CURRENT VALUE: NOT AS PER EXPECTED VALUE, ${FILE} is not present${NORM}" | tee -a ${DATA_FILE}
+		${ECHO_CMD} "${NORM}EXPECTED VALUE: ${FILE} file should be present to verify the pattern/string${NORM}" | tee -a ${DATA_FILE}	
+		FAILED_NUM_CHK="${FAILED_NUM_CHK}:${NUM_CHK}"
+		NUM_CHK=""
+		return 1
+	fi
+	# This section is for just extracting a parameter value from a parameter and compare with the expected value
+	temp_var=`cat "${FILE}" | egrep -i "^${STRING}" | awk -F "${DELIMITER}" '{print $2}'`
+	if [ "${temp_var}" != "${VALUE}" ] ; then
+		${ECHO_CMD} "${NORM}CURRENT VALUE: NOT AS PER EXPECTED VALUE, ${STRING} is not set to ${VALUE}${NORM}" | tee -a ${DATA_FILE}
+		${ECHO_CMD} "${NORM}EXPECTED VALUE: ${STRING} should be set to ${VALUE}${NORM}" | tee -a ${DATA_FILE}
+		FAILED_NUM_CHK="${FAILED_NUM_CHK}:${NUM_CHK}"
+	else
+		${ECHO_CMD} "${NORM}CURRENT VALUE: AS PER EXPECTED VALUE, ${STRING} is set to ${VALUE}${NORM}" | tee -a ${DATA_FILE}
+		${ECHO_CMD} "${NORM}EXPECTED VALUE: ${STRING} should be set to ${VALUE}${NORM}" | tee -a ${DATA_FILE}
+		SUCCESS_NUM_CHK="${SUCCESS_NUM_CHK}:${NUM_CHK}"
+	fi
+fi
+${ECHO_CMD} "\nOUTPUT: `cat ${FILE} |  egrep -i \"^${STRING}\"`" |tee -a ${DATA_FILE}
+NUM_CHK=""
+}
+
+#############################################################################
+# string_set_fn() is a generic function used to find a string in a file and set as expected if it is not set as per expected
+# This is a generic function used to extract a parameter in a file and set as expected if it is not set as per expected
+###########################################################################
+string_set_fn()
+{
+STRING="$1"
+FILE="$2"
+if [ ! -f  "${FILE}"  ] ; then
+	touch ${FILE} || { ${ECHO_CMD} "NOT AS PER EXPECTED VALUE, ${FILE} is not present in server and not able to create it" ; FAILED_NUM_CHK="${FAILED_NUM_CHK}:${NUM_CHK}" ; NUM_CHK="" ; return 1 ; }
+fi
+
+${ECHO_CMD} "\nCOMMAND: cat ${FILE} | egrep -i \"^${STRING}\"\n" | tee -a ${DATA_FILE}
+if [ $# -le 3 ] ; then
+	STRING="$1"
+	FILE="$2"
+	NUM_CHK="$3"
+	# This section is for just greping for a string/pattern in a file and compare with the expected string
+	cat "${FILE}"  | egrep -q "^${STRING}"
+	if [ $? -eq 0 ] ; then
+		${ECHO_CMD} "${NORM}CURRENT VALUE: AS PER EXPECTED VALUE,\"${STRING}\" is set${NORM}" | tee -a ${DATA_FILE}
+		${ECHO_CMD} "${NORM}EXPECTED VALUE: \"${STRING}\" should be set as per expected value${NORM}" | tee -a ${DATA_FILE}
+		SUCCESS_NUM_CHK="${SUCCESS_NUM_CHK}:${NUM_CHK}"
+	else
+		${ECHO_CMD} "${NORM}CURRENT VALUE: NOT AS PER EXPECTED VALUE, ${STRING} is not set as per expected value${NORM}"
+		#sed -i.bak "/^${STRING}/ s/^/#/"  ${FILE}
+		sed "s/^${STRING}/#&/g" ${FILE} > ${FILE}.bak && cp ${FILE}.bak ${FILE}
+		${ECHO_CMD} "${STRING}" >> ${FILE}
+		${ECHO_CMD} "${NORM}EXPECTED VALUE: \"${STRING}\" is currently set as per expected${NORM}" | tee -a ${DATA_FILE}
+		SUCCESS_NUM_CHK="${SUCCESS_NUM_CHK}:${NUM_CHK}"	
+	fi
+else
+	VALUE="$3"
+	DELIMITER="$4"
+	NUM_CHK="$5"
+	temp_var=`cat "${FILE}" | egrep -i "^${STRING}" | awk -F "${DELIMITER}" '{print $2}'`
+	if [ "${temp_var}" != "${VALUE}" ] ; then
+		${ECHO_CMD} "${NORM}CURRENT VALUE: NOT AS PER EXPECTED VALUE, ${STRING} is not set to ${VALUE}${NORM}"  | tee -a ${DATA_FILE}
+		#sed -i.bak "/^${STRING}/ s/^/#/"  ${FILE}
+		sed "s/^${STRING}/#&/g" ${FILE} > ${FILE}.bak && cp ${FILE}.bak ${FILE}
+		${ECHO_CMD} "${STRING}${DELIMITER}${VALUE}" >> ${FILE} | tee -a ${DATA_FILE}
+		${ECHO_CMD} "${NORM}EXPECTED VALUE: ${STRING} is set to ${VALUE}${NORM}" | tee -a ${DATA_FILE}
+		SUCCESS_NUM_CHK="${SUCCESS_NUM_CHK}:${NUM_CHK}"
+	else
+		${ECHO_CMD} "${NORM}CURRENT VALUE: AS PER EXPECTED VALUE, ${STRING} is set to ${VALUE}${NORM}" | tee -a ${DATA_FILE}
+		${ECHO_CMD} "${NORM}EXPECTED VALUE: ${STRING} should be set to ${VALUE}${NORM}" | tee -a ${DATA_FILE}
+		SUCCESS_NUM_CHK="${SUCCESS_NUM_CHK}:${NUM_CHK}"
+	fi
+fi
+${ECHO_CMD} "\nOUTPUT: `cat ${FILE} |  egrep -i \"^${STRING}\"`" |tee -a ${DATA_FILE}
+NUM_CHK=""
+}
+
+#############################################################################
+# Lock function to lock the known system users 
+#############################################################################
+lock_systemusers_verify_fn()
+{
+SYSUSERS="$1"
+NUM_CHK="$2"
+FLAG=0
+
+if [ "${OS}" = "Linux" ] ; then
+	PASSWD_STAT="passwd -S"
+elif [ "${OS}" = "HP-UX" ] ||  [ "${OS}" = "SunOS" ] ; then
+	PASSWD_STAT="passwd -s"	
+fi
+export PASSWD_STAT
+${ECHO_CMD} "\nCOMMAND: ${PASSWD_STAT} <user_name>\n" | tee -a ${DATA_FILE}
+
+for u in ${SYSUSERS}
+do
+	grep -q "^${u}:" ${USER_FILE}
+	if [ $? -eq 0 ] ; then
+		$PASSWD_STAT  "${u}" | egrep -q "L|LK" 2>/dev/null 
+		if [ $? -eq 0 ] ; then
+			${ECHO_CMD} "${NORM}CURRENT VALUE: AS PER EXPECTED VALUE, ${u} has been in LOCKED state${NORM}" | tee -a ${DATA_FILE}
+			${ECHO_CMD} "${NORM}EXPECTED VALUE: All SYSTEM ACCOUNTs should be locked${NORM}" | tee -a ${DATA_FILE}
+			${ECHO_CMD} "\nOUTPUT: `${PASSWD_STAT} ${u}`\n" | tee -a ${DATA_FILE}
+		else
+			${ECHO_CMD} "${NORM}CURRENT VALUE: NOT AS PER EXPECTED VALUE, ${u} hasn't LOCKED. It should be LOCKED${NORM}" | tee -a ${DATA_FILE}
+			${ECHO_CMD} "${NORM}EXPECTED VALUE: All SYSTEM ACCOUNTs should be locked${NORM}" | tee -a ${DATA_FILE}
+			FLAG=1
+			${ECHO_CMD} "\nOUTPUT: `${PASSWD_STAT} ${u}`\n" | tee -a ${DATA_FILE}
+		fi
+	else
+		${ECHO_CMD} "${NORM}CURRENT VALUE: AS PER EXPECTED VALUE, ${u} is not found in ${USER_FILE}${NORM}" >/dev/null
+		${ECHO_CMD} "${NORM}EXPECTED VALUE: All SYSTEM ACCOUNTs should be locked${NORM}" >/dev/null
+    fi
+done
+if [ ${FLAG} -ne 0 ] ; then
+	FAILED_NUM_CHK="${FAILED_NUM_CHK}:${NUM_CHK}"
+else
+	SUCCESS_NUM_CHK="${SUCCESS_NUM_CHK}:${NUM_CHK}"
+fi
+NUM_CHK=""
+}
+
+#############################################################################
+# Lock function to lock the system users 
+#############################################################################
+lock_systemusers_set_fn()
+{
+SYSUSERS="$1"
+NUM_CHK="$2"
+FLAG=0
+
+if [ "${OS}" = "Linux" ] ; then
+	PASSWD_STAT="passwd -S"
+elif [ "${OS}" = "HP-UX" ] ||  [ "${OS}" = "SunOS" ] ; then
+	PASSWD_STAT="passwd -s"	
+fi
+export PASSWD_STAT
+${ECHO_CMD} "\nCOMMAND: ${PASSWD_STAT} <user_name>\n" | tee -a ${DATA_FILE}
+
+for u in ${SYSUSERS}
+do
+	grep -q "^${u}:" ${USER_FILE}
+	if [ $? -eq 0 ] ; then
+		$PASSWD_STAT  "${u}" | egrep -q "L|LK"  2>/dev/null
+		if [ $? -eq 0 ] ; then
+			${ECHO_CMD} "${NORM}CURRENT VALUE: AS PER EXPECTED VALUE, ${u} has been in LOCKED state${NORM}" | tee -a ${DATA_FILE}
+			${ECHO_CMD} "${NORM}EXPECTED VALUE: All SYSTEM ACCOUNTs should be locked${NORM}" | tee -a ${DATA_FILE}
+			${ECHO_CMD} "\nOUTPUT: `${PASSWD_STAT} ${u}`\n" | tee -a ${DATA_FILE}
+			FLAG=0
+		else
+			${ECHO_CMD} "${NORM}CURRENT VALUE: NOT AS PER EXPECTED VALUE,${u} hasn't been locked. Locking it now${NORM}" | tee -a ${DATA_FILE}
+			${ECHO_CMD} "${NORM}EXPECTED VALUE: All SYSTEM ACCOUNTs should be locked${NORM}" | tee -a ${DATA_FILE}
+			passwd -l ${u} 2>/dev/null
+			usermod -s /bin/false ${u} 2>/dev/null
+			${ECHO_CMD} "${NORM}EXPECTED VALUE: ${u} has been locked${NORM}" | tee -a ${DATA_FILE}
+			FLAG=0
+			${ECHO_CMD} "\nOUTPUT: `${PASSWD_STAT} ${u}`\n" | tee -a ${DATA_FILE}
+		fi
+	else
+		${ECHO_CMD} "${NORM}CURRENT VALUE: AS PER EXPECTED VALUE, ${u} is not found in ${USER_FILE}${NORM}" >/dev/null
+		${ECHO_CMD} "${NORM}EXPECTED VALUE: All SYSTEM ACCOUNTs should be locked${NORM}" >/dev/null
+		FLAG=0
+    fi
+done
+if [ ${FLAG} -ne 0 ] ; then
+	FAILED_NUM_CHK="${FAILED_NUM_CHK}:${NUM_CHK}"
+else
+	SUCCESS_NUM_CHK="${SUCCESS_NUM_CHK}:${NUM_CHK}"
+fi
+NUM_CHK=""
+}
+
+#############################################################################
+# GREP for a service and disable it if it is in enabled state 
+#############################################################################
+SERVICE_BOOT_GREP()
+{
+if [ $# -eq 4 ] ; then
+	SRVC_STR="$1"
+	SRVC_NAME="$2"
+	SERVICE_STATE="$3"
+	NUM_CHK="$4"
+else
+	SRVC_STR="$1"
+	SRVC_NAME="$2"
+	SERVICE_STATE="$3"
+	SRVC_DISABLE="$4"
+	NUM_CHK="$5"
+fi
+FLAG=0
+
+if [ "${OS}" = "Linux" ] ; then
+	${ECHO_CMD} "\nCOMMAND: chkconfig --list | grep -i ${SRVC_NAME}\n" | tee -a ${DATA_FILE}
+	if [ -z "${SERVICE_STATE}" ] ; then
+		${ECHO_CMD} "${NORM}CURRENT VALUE: AS PER EXPECTED VALUE, ${SRVC_STR} service is not available${NORM}" | tee -a ${DATA_FILE}
+		${ECHO_CMD} "${NORM}EXPECTED VALUE: ${SRVC_STR} service should be disabled${NORM}" | tee -a ${DATA_FILE}
+		FLAG=0
+	else
+		${ECHO_CMD} "${SERVICE_STATE}" | egrep "2:on|3:on|5:on" | grep -v egrep 
+		if [ $? -eq 0 ] ; then
+			${ECHO_CMD} "${NORM}CURRENT VALUE: NOT AS PER EXPECTED VALUE, ${SRVC_STR} service is in enabled state${NORM}" | tee -a ${DATA_FILE} 
+			${ECHO_CMD} "${NORM}EXPECTED VALUE: ${SRVC_STR} service should be disabled${NORM}" | tee -a ${DATA_FILE}
+			FLAG=1
+			if [ $# -eq 5 ] ; then
+				chkconfig ${SRVC_NAME} off &&  { ${ECHO_CMD} "${NORM}EXPECTED VALUE: ${SRVC_STR} service is disabled now${NORM}" | tee -a ${DATA_FILE} ; FLAG=0 ; }
+			fi
+		else
+			${ECHO_CMD} "${NORM}CURRENT VALUE: AS PER EXPECTED VALUE, ${SRVC_STR} service is already in disabled state${NORM}" | tee -a ${DATA_FILE}
+			${ECHO_CMD} "${NORM}EXPECTED VALUE: ${SRVC_STR} service should be disabled${NORM}" | tee -a ${DATA_FILE}
+			FLAG=0
+		fi
+	fi
+	${ECHO_CMD} "\nOUTPUT: ${SERVICE_STATE}" | tee -a ${DATA_FILE}
+elif [ "${OS}" = "SunOS" ] ; then
+	${ECHO_CMD} "\nCOMMAND: svcs -a | egrep -i ${SRVC_NAME}\n" | tee -a ${DATA_FILE}
+	if [ -z "${SERVICE_STATE}" ] ; then
+		${ECHO_CMD} "${NORM}CURRENT VALUE: AS PER EXPECTED VALUE, ${SRVC_STR} service is not available${NORM}" | tee -a ${DATA_FILE}
+		${ECHO_CMD} "${NORM}EXPECTED VALUE: ${SRVC_STR} service should be disabled${NORM}" | tee -a ${DATA_FILE}
+		FLAG=0
+	else
+		svcs -a | egrep -i ${SRVC_NAME} | egrep -i "enabled" >/dev/null
+		if [ $? -eq 0 ] ; then
+			${ECHO_CMD} "${NORM}CURRENT VALUE: NOT AS PER EXPECTED VALUE, ${SRVC_STR} service is in enabled state${NORM}" | tee -a ${DATA_FILE}
+			${ECHO_CMD} "${NORM}EXPECTED VALUE: ${SRVC_STR} service should be disabled${NORM}" | tee -a ${DATA_FILE}
+			FLAG=1
+			if [ $# -eq 5 ] ; then
+				svcadm disable ${SRVC_NAME} && { ${ECHO_CMD} "${NORM}EXPECTED VALUE: ${SRVC_STR} service is disabled now${NORM}" | tee -a ${DATA_FILE} ; FLAG=0 ;  }
+			fi
+		else
+			${ECHO_CMD} "${NORM}CURRENT VALUE: AS PER EXPECTED VALUE, ${SRVC_STR} service is already in disabled state${NORM}" | tee -a ${DATA_FILE}
+			${ECHO_CMD} "${NORM}EXPECTED VALUE: ${SRVC_STR} service should be disabled${NORM}" | tee -a ${DATA_FILE}
+			FLAG=0
+		fi
+		${ECHO_CMD} "\nOUTPUT: ${SERVICE_STATE}" | tee -a ${DATA_FILE}
+	fi
+fi
+
+if [ ${FLAG} -ne 0 ] ; then
+	FAILED_NUM_CHK="${FAILED_NUM_CHK}:${NUM_CHK}"
+else
+	SUCCESS_NUM_CHK="${SUCCESS_NUM_CHK}:${NUM_CHK}"
+fi
+NUM_CHK=""
+}
+
+#############################################################################
+# verify whether any service is running. If yes, stop it
+#############################################################################
+srvc_stop()
+{
+SRVC_STR="$1"
+SRVC_NAME="$2"
+
+${ECHO_CMD} "\nCOMMAND: ps -eaf | egrep ${SRVC_NAME} | grep -v egrep\n" | tee -a ${DATA_FILE}
+
+if [ "${OS}" = "Linux" ] ; then  
+	service ${SRVC_NAME} status 2>/dev/null | grep  "running"  >/dev/null 2>&1
+	if [ $? -eq 0 ] ; then
+		${ECHO_CMD} "${NORM}CURRENT VALUE: NOT AS PER EXPECTED VALUE, ${SRVC_STR} service is running${NORM}" | tee -a ${DATA_FILE} | tee -a ${DATA_FILE}  
+		service ${SRVC_NAME} stop 2>/dev/null  && ${ECHO_CMD} "{NORM}EXPECTED VALUE: ${SRVC_STR} service has been stopped now${NORM}" | tee -a ${DATA_FILE}  
+	else
+		${ECHO_CMD} "${NORM}CURRENT VALUE: AS PER EXPECTED VALUE, ${SRVC_STR} service is not running${NORM}" | tee -a ${DATA_FILE} 
+		${ECHO_CMD} "${NORM}EXPECTED VALUE: ${SRVC_STR} service should be stopped${NORM}" | tee -a ${DATA_FILE} 
+	fi
+elif [ "${OS}" = "SunOS" ] ; then
+	#Cheek whether any service is running. If yes, please stop it first and then disable the service
+	svcs -a | egrep -i "${SRVC_NAME}" 2>/dev/null | egrep "online|offline" 2>/dev/null | grep -v egrep  >/dev/null 2>&1
+	if [ $? -eq 0 ] ; then
+		${ECHO_CMD} "${NORM}CURRENT VALUE: NOT AS PER EXPECTED VALUE, ${SRVC_STR} service is running${NORM}" | tee -a ${DATA_FILE}
+		svcadm disable ${SRVC_NAME} 2>/dev/null  &&  ${ECHO_CMD} "{NORM}EXPECTED VALUE: ${SRVC_STR} service has been stopped now${NORM}" | tee -a ${DATA_FILE}
+	else
+		${ECHO_CMD} "${NORM}CURRENT VALUE: AS PER EXPECTED VALUE, ${SRVC_STR} service is not running${NORM}" | tee -a ${DATA_FILE}
+		${ECHO_CMD} "${NORM}EXPECTED VALUE: ${SRVC_STR} service should be stopped${NORM}" | tee -a ${DATA_FILE} 
+	fi
+elif [ "${OS}" = "HP-UX" ] ; then
+	#Cheek whether any service is running related to NIS server. If yes, please stop it first and then disable the service
+	ps -eaf | grep "${SRVC_STR}" | grep -v egrep  >/dev/null 2>&1
+	if [ $? -eq 0 ] ; then
+		${ECHO_CMD} "${NORM}CURRENT VALUE: NOT AS PER EXPECTED VALUE, ${SRVC_STR} service is running${NORM}" | tee -a ${DATA_FILE}
+		${SRVC_NAME} stop 2>/dev/null &&  ${ECHO_CMD} "NORM}EXPECTED VALUE: ${SRVC_STR} service has been stopped now${NORM}" | tee -a ${DATA_FILE}
+	else
+		${ECHO_CMD} "${NORM}CURRENT VALUE: AS PER EXPECTED VALUE, ${SRVC_STR} service is not running${NORM}" | tee -a ${DATA_FILE} 
+		${ECHO_CMD} "${NORM}EXPECTED VALUE: ${SRVC_STR} service should be stopped${NORM}" | tee -a ${DATA_FILE} 
+	fi
+fi
+
+${ECHO_CMD} "\nOUTPUT: `ps -eaf | egrep ${SRVC_NAME} | grep -v egrep`" | tee -a ${DATA_FILE}
+}
+
+#############################################################################
+# Verify whether NIS server service in all platforms is disabled
+#############################################################################
+disable_NIS_server_verify_fn()
+{
+NUM_CHK="$1"
+
+if [ "${OS}" = "Linux" ] ; then
+	service_state=`chkconfig --list 2>/dev/null | grep -i "ypserv"`	
+	SERVICE_BOOT_GREP "NIS SERVER" "ypserv" "${service_state}" "${NUM_CHK}"
+elif [ "${OS}" = "SunOS" ] ; then
+	uname -a | egrep -q "5.10"
+	if [ $? -eq 0 ] ; then
+		service_state=`svcs -Ho state svc:/network/nis/server:default`
+		SERVICE_BOOT_GREP "NIS SERVER" "svc:/network/nis/server:default" "${service_state}" "${NUM_CHK}"
+	else
+		service_state=`svcs -Ho state svc:/network/nis/domain:default`
+		SERVICE_BOOT_GREP "NIS SERVER" "svc:/network/nis/domain:default" "${service_state}" "${NUM_CHK}"
+	fi
+elif [ "${OS}" = "HP-UX" ] ; then
+	#Compare the string/flag /etc/rc.config.d/namesvrs
+	string_verify_fn "NIS_MASTER_SERVER" "/etc/rc.config.d/namesvrs" "0" "=" "${NUM_CHK}"
+	string_verify_fn "NIS_SLAVE_SERVER" "/etc/rc.config.d/namesvrs" "0" "=" "${NUM_CHK}"
+fi
+NUM_CHK=""	
+}
+
+#############################################################################
+# Disable NIS server service in all platforms
+#############################################################################
+disable_NIS_server_set_fn()
+{
+NUM_CHK="$1"
+if [ "${OS}" = "Linux" ] ; then
+	srvc_stop "NIS SERVER" "ypserv"
+	service_state=`chkconfig --list 2>/dev/null | grep -i "ypserv"`	
+	SERVICE_BOOT_GREP "NIS SERVER" "ypserv" "${service_state}" "SET_DISABLE" "${NUM_CHK}"
+elif [ "${OS}" = "SunOS" ] ; then
+	srvc_stop "NIS SERVER" "svc:/network/nis/server:default"
+	uname -a | egrep -q "5.10"
+	if [ $? -eq 0 ] ; then
+		service_state=`svcs -Ho state svc:/network/nis/server:default`
+		SERVICE_BOOT_GREP "NIS SERVER" "svc:/network/nis/server:default" "${service_state}" "SET_DISABLE" "${NUM_CHK}"
+	else
+		service_state=`svcs -Ho state svc:/network/nis/domain:default`
+		SERVICE_BOOT_GREP "NIS SERVER" "svc:/network/nis/domain:default" "${service_state}" "SET_DISABLE" "${NUM_CHK}"
+	fi
+elif [ "${OS}" = "HP-UX" ] ; then
+	#Compare the string/flag /etc/rc.config.d/namesvrs
+	string_set_fn "NIS_MASTER_SERVER" "/etc/rc.config.d/namesvrs" "0" "=" "${NUM_CHK}"
+	string_set_fn "NIS_SLAVE_SERVER" "/etc/rc.config.d/namesvrs" "0" "=" "${NUM_CHK}"
+fi
+NUM_CHK=""
+}	
+
+#############################################################################
+# Verify whether NIS client service in all platforms is disabled
+#############################################################################
+disable_NIS_client_verify_fn()
+{
+NUM_CHK="$1"
+if [ "${OS}" = "Linux" ] ; then
+	service_state=`chkconfig --list 2>/dev/null | grep -i "ypbind"`	
+	SERVICE_BOOT_GREP "NIS client" "ypbind" "${service_state}" "${NUM_CHK}"
+elif [ "${OS}" = "SunOS" ] ; then
+	service_state=`svcs -Ho state svc:/network/nis/client:default`
+	SERVICE_BOOT_GREP "NIS CLIENT" "svc:/network/nis/client:default" "${service_state}"	"${NUM_CHK}"
+elif [ "${OS}" = "HP-UX" ] ; then
+	#Compare the string/flag /etc/rc.config.d/namesvrs
+	string_verify_fn "NIS_CLIENT" "/etc/rc.config.d/namesvrs" "0" "=" "${NUM_CHK}"
+	string_verify_fn "NISPLUS_CLIENT" "/etc/rc.config.d/namesvrs" "0" "=" "${NUM_CHK}"
+fi
+NUM_CHK=""	
+}		
+
+#############################################################################
+# Disable NIS client service in all platforms
+#############################################################################
+disable_NIS_client_set_fn()
+{
+NUM_CHK="$1"
+if [ "${OS}" = "Linux" ] ; then
+	srvc_stop "NIS CLIENT" "ypbind"
+	service_state=`chkconfig --list 2>/dev/null | grep -i "ypbind"`	
+	SERVICE_BOOT_GREP "NIS CLIENT" "ypbind" "${service_state}" "SET_DISABLE" "${NUM_CHK}"
+elif [ "${OS}" = "SunOS" ] ; then
+	srvc_stop "NIS CLIENT" "svc:/network/nis/client:default"
+	service_state=`svcs -Ho state svc:/network/nis/client:default`
+	SERVICE_BOOT_GREP "NIS CLIENT" "svc:/network/nis/client:default" "${service_state}" "SET_DISABLE" "${NUM_CHK}"	
+elif [ "${OS}" = "HP-UX" ] ; then
+	#srvc_stop "NIS CLIENT" "/sbin/init.d/nis.client" 
+	#Compare the string/flag /etc/rc.config.d/namesvrs
+	string_set_fn "NIS_CLIENT" "/etc/rc.config.d/namesvrs" "0" "=" "${NUM_CHK}"
+	string_set_fn "NISPLUS_CLIENT" "/etc/rc.config.d/namesvrs" "0" "=" "${NUM_CHK}"
+fi
+NUM_CHK=""
+}
+
+#############################################################################
+# Verify whether SENDMAIL service in all platforms is disabled
+#############################################################################
+disable_sendmail_verify_fn()
+{
+NUM_CHK="$1"
+if [ "${OS}" = "Linux" ] ; then
+	service_state=`chkconfig --list 2>/dev/null | grep -i "sendmail"`	
+	SERVICE_BOOT_GREP "SENDMAIL" "sendmail" "${service_state}" "${NUM_CHK}"
+elif [ "${OS}" = "SunOS" ] ; then
+	service_state=`svcs -Ho state svc:/network/smtp:sendmail`
+	SERVICE_BOOT_GREP "SENDMAIL" "svc:/network/smtp:sendmail" "${service_state}" "${NUM_CHK}"	
+elif [ "${OS}" = "HP-UX" ] ; then
+	#Compare the string/flag /etc/rc.config.d/namesvrs
+	string_verify_fn "SENDMAIL_SERVER" "/etc/rc.config.d/mailservs" "0" "=" "${NUM_CHK}"
+fi
+
+${ECHO_CMD} "\nCOMMAND: ps -ef|grep -i sendmail: |grep -v 'grep'\n" | tee -a ${DATA_FILE}
+if [ `ps -ef|grep -i "sendmail:" |grep -v 'grep'|wc -l` -ge 1 ]; then
+	${ECHO_CMD} "CURRENT VALUE: NOT AS PER EXPECTED VALUES, sendmail is in ENABLED state" | tee -a ${DATA_FILE}
+	${ECHO_CMD} "EXPECTED VALUE: sendmail should be in disable state" | tee -a ${DATA_FILE}
+	FAILED_NUM_CHK="${FAILED_NUM_CHK}:${NUM_CHK}"
+else
+	${ECHO_CMD} "CURRENT VALUE: AS PER EXPECTED VALUES, sendmail is in DISABLED state" | tee -a ${DATA_FILE}
+	${ECHO_CMD} "EXPECTED VALUE: sendmail should be in disable state" | tee -a ${DATA_FILE}
+	SUCCESS_NUM_CHK="${SUCCESS_NUM_CHK}:${NUM_CHK}"
+fi
+${ECHO_CMD} "\nOUTPUT: `ps -ef|grep -i sendmail: |grep -v 'grep'`" | tee -a ${DATA_FILE}
+
+NUM_CHK=""
+}
+
+#############################################################################
+# Disable SENDMAIL service in all platforms
+#############################################################################
+disable_sendmail_set_fn()
+{
+NUM_CHK="$1"
+if [ "${OS}" = "Linux" ] ; then
+	srvc_stop "SENDMAIL" "sendmail"
+	service_state=`chkconfig --list 2>/dev/null | grep -i "sendmail"`	
+	SERVICE_BOOT_GREP "SENDMAIL" "sendmail" "${service_state}" "SET_DISABLE" "${NUM_CHK}"
+elif [ "${OS}" = "SunOS" ] ; then
+	srvc_stop "SENDMAIL" "svc:/network/smtp:sendmail"
+	service_state=`svcs -Ho state svc:/network/smtp:sendmail`
+	SERVICE_BOOT_GREP "SENDMAIL" "svc:/network/smtp:sendmail" "${service_state}" "SET_DISABLE" "${NUM_CHK}"
+elif [ "${OS}" = "HP-UX" ] ; then
+	#Compare the string/flag /etc/rc.config.d/namesvrs
+	string_set_fn "SENDMAIL_SERVER" "/etc/rc.config.d/mailservs" "0" "=" "${NUM_CHK}"
+fi
+NUM_CHK=""	
+}
+
+#############################################################################
+# Verify whether RSH, RLOGIN, RCP & REXEC services in all platforms are disabled. These should be disabled
+#############################################################################
+disable_remote_commands_verify_fn()
+{
+NUM_CHK="$1"
+FLAG=0
+
+if [ "${OS}" = "Linux" ] ; then
+	REMOTE_SERVICES="rsh rlogin rcp rexec"
+	for srvc in ${REMOTE_SERVICES}
+	do
+		${ECHO_CMD} "\nCOMMAND: rpm -ql ${srvc}\n" | tee -a ${DATA_FILE}
+		#yum list $srvc >/dev/null 2>&1
+		rpm -ql ${srvc} >/dev/null 2>&1
+		if [ $? -eq 0 ] ; then
+			${ECHO_CMD} "${NORM}CURRENT VALUE: NOT AS PER EXPECTED VALUE, $srvc is installed${NORM}" | tee -a ${DATA_FILE}
+			${ECHO_CMD} "${NORM}EXPECTED VALUE: ${srvc} should be disabled${NORM}" | tee -a ${DATA_FILE}
+			FLAG=1
+		else
+			${ECHO_CMD} "${NORM}CURRENT VALUE: AS PER EXPECTED VALUE, $srvc is not installed${NORM}" | tee -a ${DATA_FILE}	
+			${ECHO_CMD} "${NORM}EXPECTED VALUE: ${srvc} should be disabled${NORM}" | tee -a ${DATA_FILE}
+		fi
+		${ECHO_CMD} "\nOUTPUT: `rpm -ql ${srvc}`" | tee -a ${DATA_FILE}
+	done
+elif [ "${OS}" = "SunOS" ] ; then
+	service_state=`svcs -Ho state svc:/network/login:rlogin`
+	SERVICE_BOOT_GREP "RLOGIN" "svc:/network/login:rlogin" "${service_state}" "${NUM_CHK}"	 
+	service_state=`svcs -Ho state svc:/network/shell:default`
+	SERVICE_BOOT_GREP "RSH_RCP" "svc:/network/shell:default" "${service_state}"	"${NUM_CHK}"
+	service_state=`svcs -Ho state svc:/network/rexec:default`
+	SERVICE_BOOT_GREP "REXEC" "svc:/network/rexec:default" "${service_state}" "${NUM_CHK}"
+elif [ "${OS}" = "HP-UX" ] ; then
+	#Compare the string/flag /etc/rc.config.d/namesvrs
+	FILE="/etc/inetd.conf"
+	REMOTE_SERVICES="login shell exec"
+	for srvc in ${REMOTE_SERVICES}
+	do
+		${ECHO_CMD} "\nCOMMAND: egrep \"^${srvc}\" ${FILE}\n" | tee -a ${DATA_FILE}
+		egrep "${srvc}" ${FILE} | egrep -v "^#|egrep" 
+		if [ $? -eq 0 ] ; then
+			${ECHO_CMD} "${NORM}CURRENT VALUE: NOT AS PER EXPECTED VALUE, r${srvc} is enabled${NORM}" | tee -a ${DATA_FILE}
+			${ECHO_CMD} "${NORM}EXPECTED VALUE: r${srvc} should be disabled${NORM}" | tee -a ${DATA_FILE}
+			FLAG=1			
+		else
+			${ECHO_CMD} "${NORM}CURRENT VALUE: AS PER EXPECTED VALUE, r${srvc} is already in disabled state${NORM}" | tee -a ${DATA_FILE}
+			${ECHO_CMD} "${NORM}EXPECTED VALUE: r${srvc} should be disabled${NORM}" | tee -a ${DATA_FILE}
+		fi
+		${ECHO_CMD} "\nOUTPUT: `egrep \"^${srvc}\" ${FILE}`" | tee -a ${DATA_FILE}
+	done
+fi
+
+if [ ${FLAG} -ne 0 ] ; then
+	FAILED_NUM_CHK="${FAILED_NUM_CHK}:${NUM_CHK}"
+else
+	SUCCESS_NUM_CHK="${SUCCESS_NUM_CHK}:${NUM_CHK}"
+fi
+NUM_CHK=""
+}
+
+#############################################################################
+# Disable  RSH, RLOGIN, RCP & REXEC services in all platforms
+#############################################################################
+disable_remote_commands_set_fn()
+{
+NUM_CHK="$1"
+FLAG=0
+
+if [ "${OS}" = "Linux" ] ; then
+	REMOTE_SERVICES="rsh rlogin rcp rexec"
+	for srvc in ${REMOTE_SERVICES}
+	do
+		${ECHO_CMD} "\nCOMMAND: rpm -ql ${srvc}\n" | tee -a ${DATA_FILE}
+		#yum list $srvc >/dev/null 2>&1
+		rpm -ql ${srvc} >/dev/null 2>&1
+		if [ $? -eq 0 ] ; then
+			${ECHO_CMD} "${NORM}CURRENT VALUE: NOT AS PER EXPECTED VALUE, $srvc is installed${NORM}" | tee -a ${DATA_FILE}
+			yum remove $srvc 2>/dev/null  &&  FLAG=0
+			${ECHO_CMD} "${NORM}EXPECTED VALUE: ${srvc} is disabled now${NORM}" | tee -a ${DATA_FILE}
+		else
+			${ECHO_CMD} "${NORM}CURRENT VALUE: AS PER EXPECTED VALUE, $srvc is not installed${NORM}" | tee -a ${DATA_FILE}
+			${ECHO_CMD} "${NORM}EXPECTED VALUE: ${srvc} should be disabled${NORM}" | tee -a ${DATA_FILE}
+			FLAG=0
+		fi
+		${ECHO_CMD} "\nOUTPUT: `rpm -ql ${srvc}`" | tee -a ${DATA_FILE}
+	done
+elif [ "${OS}" = "SunOS" ] ; then
+	service_state=`svcs -Ho state svc:/network/login:rlogin`
+	SERVICE_BOOT_GREP "RLOGIN" "svc:/network/login:rlogin" "${service_state}"	"SET_DISABLE" "${NUM_CHK}"
+	service_state=`svcs -Ho state svc:/network/shell:default`
+	SERVICE_BOOT_GREP "RSH_RCP" "svc:/network/shell:default" "${service_state}"	"SET_DISABLE" "${NUM_CHK}"
+	service_state=`svcs -Ho state svc:/network/rexec:default`
+	SERVICE_BOOT_GREP "REXEC" "svc:/network/rexec:default" "${service_state}" "SET_DISABLE" "${NUM_CHK}"
+elif [ "${OS}" = "HP-UX" ] ; then
+	#Compare the string/flag /etc/rc.config.d/namesvrs
+	FILE="/etc/inetd.conf"
+	REMOTE_SERVICES="login shell exec"
+	for srvc in ${REMOTE_SERVICES}
+	do
+		${ECHO_CMD} "\nCOMMAND: egrep \"^${srvc}\" ${FILE}\n" | tee -a ${DATA_FILE}
+		egrep "${srvc}" ${FILE} | egrep -v "^#|egrep" 
+		if [ $? -eq 0 ] ; then
+			${ECHO_CMD} "${NORM}CURRENT VALUE: NOT AS PER EXPECTED VALUE, ${srvc} is enabled${NORM}" | tee -a ${DATA_FILE} 
+			#sed -i.bak "/^${srvc}/ s/^/#/" ${FILE}
+			sed "s/^${srvc}/#&/g" ${FILE} > ${FILE}.bak && cp ${FILE}.bak ${FILE}
+			${ECHO_CMD} "${NORM}EXPECTED VALUE: ${srvc} has been disabled now${NORM}" | tee -a ${DATA_FILE} 
+			FLAG=0
+		else
+			${ECHO_CMD} "${NORM}CURRENT VALUE: AS PER EXPECTED VALUE, ${srvc} is already in disabled state${NORM}" | tee -a ${DATA_FILE}
+			${ECHO_CMD} "${NORM}EXPECTED VALUE: ${srvc} should be disabled${NORM}" | tee -a ${DATA_FILE}
+			FLAG=0
+		fi
+		${ECHO_CMD} "\nOUTPUT: `egrep \"^${srvc}\" ${FILE}`" | tee -a ${DATA_FILE}
+	done	
+fi
+
+if [ ${FLAG} -ne 0 ] ; then
+	FAILED_NUM_CHK="${FAILED_NUM_CHK}:${NUM_CHK}"
+else
+	SUCCESS_NUM_CHK="${SUCCESS_NUM_CHK}:${NUM_CHK}"
+fi
+NUM_CHK=""
+}
+
+#############################################################################
+# Verify whether FTP, TELNET, FINGER, RWALL, TFTP & UUCP services in all platforms are disabled. These should be disabled
+#############################################################################
+disable_unwanted_svcs_verify_fn()
+{
+NUM_CHK="$1"
+FLAG=0
+
+if [ "${OS}" = "Linux" ] ; then
+	REMOTE_SERVICES="ftp telnet finger login uucp rwall tftp"
+	for srvc in ${REMOTE_SERVICES}
+	do 
+		service_state=`chkconfig --list 2>/dev/null | grep -i "${srvc}"`	
+		SERVICE_BOOT_GREP "${srvc}" "${srvc}" "${service_state}" "${NUM_CHK}"
+	done
+elif [ "${OS}" = "SunOS" ] ; then
+	service_state=`svcs -Ho state svc:/network/ftp:default`
+	SERVICE_BOOT_GREP "FTP" "svc:/network/ftp:default" "${service_state}" "${NUM_CHK}"
+	service_state=`svcs -Ho state svc:/network/telnet:default`
+	SERVICE_BOOT_GREP "TELNET" "svc:/network/telnet:default" "${service_state}" "${NUM_CHK}"
+	service_state=`svcs -Ho state svc:/network/rpc/wall:default`
+	SERVICE_BOOT_GREP "RWALL" "svc:/network/rpc/wall:default" "${service_state}" "${NUM_CHK}"	
+	service_state=`svcs -Ho state svc:/network/finger:default`
+	SERVICE_BOOT_GREP "FINGER" "svc:/network/finger:default" "${service_state}" "${NUM_CHK}"
+	service_state=`svcs -Ho state svc:/network/uucp:default`
+	SERVICE_BOOT_GREP "UUCP" "svc:/network/uucp:default" "${service_state}" "${NUM_CHK}"
+	#disabling TFTP  
+	egrep "^tftp" /etc/inetd.conf && { ${ECHO_CMD} "Current: ${srvc} needs to be disabled" | tee -a ${DATA_FILE} ; } || { ${ECHO_CMD} "Expected: ${srvc} is already in disabled state" | tee -a ${DATA_FILE} ; }
+elif [ "${OS}" = "HP-UX" ] ; then
+	#Compare the string/flag /etc/rc.config.d/namesvrs
+	FILE="/etc/inetd.conf"
+	REMOTE_SERVICES="ftp telnet finger login uucp rwall tftp"
+	for srvc in ${REMOTE_SERVICES}
+	do
+		${ECHO_CMD} "\nCOMMAND: egrep \"^${srvc}\" ${FILE}\n" | tee -a ${DATA_FILE}
+		egrep "${srvc}" ${FILE} | egrep -v "^#|egrep" 
+		if [ $? -eq 0 ] ; then
+			${ECHO_CMD} "${NORM}CURRENT VALUE: NOT AS PER EXPECTED VALUE, ${srvc} is enabled${NORM}" | tee -a ${DATA_FILE}
+			FLAG=1
+			${ECHO_CMD} "${NORM}EXPECTED VALUE: ${srvc} should be disabled${NORM}" | tee -a ${DATA_FILE}
+		else
+			${ECHO_CMD} "${NORM}CURRENT VALUE: AS PER EXPECTED VALUE, ${srvc} is already in disabled state${NORM}" | tee -a ${DATA_FILE} 
+			${ECHO_CMD} "${NORM}EXPECTED VALUE: ${srvc} should be disabled${NORM}" | tee -a ${DATA_FILE}
+		fi
+		${ECHO_CMD} "\nOUTPUT: `egrep \"^${srvc}\" ${FILE}`" | tee -a ${DATA_FILE}
+	done
+fi
+
+if [ ${FLAG} -ne 0 ] ; then
+	FAILED_NUM_CHK="${FAILED_NUM_CHK}:${NUM_CHK}"
+else
+	SUCCESS_NUM_CHK="${SUCCESS_NUM_CHK}:${NUM_CHK}"
+fi
+NUM_CHK=""
+}
+
+#############################################################################
+# Disable FTP, TELNET, FINGER, RWALL, TFTP & UUCP services in all platforms
+#############################################################################
+disable_unwanted_svcs_set_fn()
+{
+NUM_CHK="$1"
+FLAG=0
+
+if [ "${OS}" = "Linux" ] ; then
+	REMOTE_SERVICES="ftp telnet finger login uucp rwall tftp"
+	for srvc in ${REMOTE_SERVICES}
+	do 
+		service_state=`chkconfig --list 2>/dev/null | grep -i "${srvc}"`	
+		SERVICE_BOOT_GREP "${srvc}" "${srvc}" "${service_state}" "SET_DISABLE" "${NUM_CHK}"
+	done
+elif [ "${OS}" = "SunOS" ] ; then
+	service_state=`svcs -Ho state svc:/network/ftp:default`
+	SERVICE_BOOT_GREP "FTP" "svc:/network/ftp:default" "${service_state}" "SET_DISABLE" "${NUM_CHK}"
+	service_state=`svcs -Ho state svc:/network/telnet:default`
+	SERVICE_BOOT_GREP "TELNET" "svc:/network/telnet:default" "${service_state}" "SET_DISABLE" "${NUM_CHK}"
+	service_state=`svcs -Ho state svc:/network/rpc/wall:default`
+	SERVICE_BOOT_GREP "RWALL" "svc:/network/rpc/wall:default" "${service_state}" "SET_DISABLE" "${NUM_CHK}"	
+	service_state=`svcs -Ho state svc:/network/finger:default`
+	SERVICE_BOOT_GREP "FINGER" "svc:/network/finger:default" "${service_state}"	"SET_DISABLE" "${NUM_CHK}"
+	service_state=`svcs -Ho state svc:/network/uucp:default`
+	SERVICE_BOOT_GREP "UUCP" "svc:/network/uucp:default" "${service_state}" "SET_DISABLE" "${NUM_CHK}"
+	#disabling TFTP
+	FILE="/etc/inetd.conf"
+	egrep "${srvc}" ${FILE} | egrep -v "^#|egrep" 
+	if [ $? -eq 0 ] ; then
+		${ECHO_CMD} "${NORM}CURRENT VALUE: NOT AS PER EXPECTED VALUE, ${srvc} is enabled${NORM}" | tee -a ${DATA_FILE} 
+		#sed -i.bak "/^${srvc}/ s/^/#/" ${FILE}
+		sed "s/^${srvc}/#&/g" ${FILE} > ${FILE}.bak && cp ${FILE}.bak ${FILE}
+		${ECHO_CMD} "${NORM}EXPECTED VALUE: ${srvc} is disabled now${NORM}" | tee -a ${DATA_FILE} 
+	else
+		${ECHO_CMD} "${NORM}CURRENT VALUE: AS PER EXPECTED VALUE, ${srvc} is already in disabled state${NORM}" | tee -a ${DATA_FILE}
+		${ECHO_CMD} "${NORM}EXPECTED VALUE: ${srvc} should be disabled${NORM}" | tee -a ${DATA_FILE} 
+	fi
+elif [ "${OS}" = "HP-UX" ] ; then
+	#Compare the string/flag /etc/rc.config.d/namesvrs
+	FILE="/etc/inetd.conf"
+	REMOTE_SERVICES="login shell exec"
+	for srvc in ${REMOTE_SERVICES}
+	do
+		${ECHO_CMD} "\nCOMMAND: egrep \"^${srvc}\" ${FILE}\n" | tee -a ${DATA_FILE}
+		egrep "${srvc}" ${FILE} | egrep -v "^#|egrep" 
+		if [ $? -eq 0 ] ; then
+			${ECHO_CMD} "${NORM}CURRENT VALUE: NOT AS PER EXPECTED VALUE, ${srvc} is enabled${NORM}" | tee -a ${DATA_FILE} 
+			#sed -i.bak "/^${srvc}/ s/^/#/" ${FILE}
+			sed "s/^${srvc}/#&/g" ${FILE} > ${FILE}.bak && cp ${FILE}.bak ${FILE}
+			FLAG=0
+			${ECHO_CMD} "${NORM}EXPECTED VALUE: ${srvc} is disabled${NORM}" | tee -a ${DATA_FILE}
+		else
+			${ECHO_CMD} "${NORM}CURRENT VALUE: AS PER EXPECTED VALUE, ${srvc} is already in disabled state${NORM}" | tee -a ${DATA_FILE} 
+			${ECHO_CMD} "${NORM}EXPECTED VALUE: ${srvc} should be disabled${NORM}" | tee -a ${DATA_FILE}
+		fi
+		${ECHO_CMD} "\nOUTPUT: `egrep \"^${srvc}\" ${FILE}`" | tee -a ${DATA_FILE}
+	done
+fi
+
+if [ ${FLAG} -ne 0 ] ; then
+	FAILED_NUM_CHK="${FAILED_NUM_CHK}:${NUM_CHK}"
+else
+	SUCCESS_NUM_CHK="${SUCCESS_NUM_CHK}:${NUM_CHK}"
+fi
+NUM_CHK=""
+}
+
+#############################################################################
+# Verify whether CHARGEN STREAM and DATAGRAM services in all platforms are disabled
+#############################################################################
+disable_chargen_verify_fn()
+{
+NUM_CHK="$1"
+if [ "${OS}" = "Linux" ] ; then
+	service_state=`chkconfig --list 2>/dev/null | grep -i "chargen-stream"`	
+	SERVICE_BOOT_GREP "CHARGEN STREAM" "chargen-stream" "${service_state}" "${NUM_CHK}"
+	
+	service_state=`chkconfig --list 2>/dev/null | grep -i "chargen-dgram"`	
+	SERVICE_BOOT_GREP "CHARGEN DGRAM" "chargen-dgram" "${service_state}" "${NUM_CHK}"
+else
+	${ECHO_CMD} "\nCOMMAND: NOT APPLICABLE\n" | tee -a ${DATA_FILE}
+	${ECHO_CMD} "CURRENT VALUE: This service is not applicable for ${OS} OS${NORM}" | tee -a ${DATA_FILE}
+	${ECHO_CMD} "${NORM}EXPECTED Value: NOT APPLICABLE, This service is not applicable for ${OS} OS${NORM}" | tee -a ${DATA_FILE}
+	NA_NUM_CHK="${NA_NUM_CHK}:${NUM_CHK}"
+	${ECHO_CMD} "\nOUTPUT: NA" | tee -a ${DATA_FILE}
+fi
+NUM_CHK=""
+}
+
+#############################################################################
+# Disable CHARGEN STREAM and DATAGRAM services in all platforms
+#############################################################################
+disable_chargen_set_fn()
+{
+NUM_CHK="$1"
+if [ "${OS}" = "Linux" ] ; then
+	#srvc_stop "CHARGEN STREAM" "chargen-stream"
+	service_state=`chkconfig --list 2>/dev/null | grep -i "chargen-stream"`	
+	SERVICE_BOOT_GREP "CHARGEN STREAM" "chargen-stream" "${service_state}" "SET_DISABLE" "${NUM_CHK}"
+	
+	#srvc_stop "CHARGEN DGRAM" "chargen-dgram"
+	service_state=`chkconfig --list 2>/dev/null | grep -i "chargen-dgram"`	
+	SERVICE_BOOT_GREP "CHARGEN DGRAM" "chargen-dgram" "${service_state}" "SET_DISABLE" "${NUM_CHK}"
+else
+	${ECHO_CMD} "\nCOMMAND: NOT APPLICABLE\n" | tee -a ${DATA_FILE}
+	${ECHO_CMD} "${NORM}CURRENT Value: NOT APPLICABLE, This service is not applicable for ${OS} OS${NORM}" | tee -a ${DATA_FILE}
+	${ECHO_CMD} "${NORM}EXPECTED Value: NOT APPLICABLE, This service is not applicable for ${OS} OS${NORM}" | tee -a ${DATA_FILE}
+	NA_NUM_CHK="${NA_NUM_CHK}:${NUM_CHK}"
+	${ECHO_CMD} "\nOUTPUT: NOT APPLICABLE" | tee -a ${DATA_FILE}
+fi
+NUM_CHK=""
+}
+
+#############################################################################
+# Verify whether DAYTIME-DGRAM (LINUX) and DAYTIME-STREAM (LINUX) in all platforms are disabled
+#############################################################################
+disable_daytime_verify_fn()
+{
+NUM_CHK="$1"
+if [ "${OS}" = "Linux" ] ; then
+	service_state=`chkconfig --list 2>/dev/null | grep -i "daytime-dgram"`	
+	SERVICE_BOOT_GREP "DAYTIME DGRAM" "daytime-dgram" "${service_state}" "${NUM_CHK}"
+	
+	service_state=`chkconfig --list 2>/dev/null | grep -i "daytime-stream"`	
+	SERVICE_BOOT_GREP "DAYTIME STREAM" "daytime-stream" "${service_state}" "${NUM_CHK}"
+else
+	${ECHO_CMD} "\nCOMMAND: NOT APPLICABLE\n" | tee -a ${DATA_FILE}
+	${ECHO_CMD} "${NORM}CURRENT Value: NOT APPLICABLE, This service is not applicable for ${OS} OS${NORM}" | tee -a ${DATA_FILE}
+	${ECHO_CMD} "${NORM}EXPECTED Value: NOT APPLICABLE, This service is not applicable for ${OS} OS${NORM}" | tee -a ${DATA_FILE}
+	NA_NUM_CHK="${NA_NUM_CHK}:${NUM_CHK}"
+	${ECHO_CMD} "\nOUTPUT: NOT APPLICABLE" | tee -a ${DATA_FILE}
+fi
+NUM_CHK=""
+}
+
+#############################################################################
+# Disable DAYTIME-DGRAM (LINUX) and DAYTIME-STREAM (LINUX) services in all platforms 
+#############################################################################
+disable_daytime_set_fn()
+{
+NUM_CHK="$1"
+if [ "${OS}" = "Linux" ] ; then
+	#srvc_stop "DAYTIME DGRAM" "daytime-dgram"
+	service_state=`chkconfig --list 2>/dev/null | grep -i "daytime-dgram"`	
+	SERVICE_BOOT_GREP "DAYTIME DGRAM" "daytime-dgram" "${service_state}" "SET_DISABLE" "${NUM_CHK}"
+	
+	#srvc_stop "DAYTIME STREAM" "daytime-stream"
+	service_state=`chkconfig --list 2>/dev/null | grep -i "daytime-stream"`	
+	SERVICE_BOOT_GREP "DAYTIME STREAM" "daytime-stream" "${service_state}" "SET_DISABLE" "${NUM_CHK}"
+else
+	${ECHO_CMD} "\nCOMMAND: NOT APPLICABLE\n" | tee -a ${DATA_FILE}
+	${ECHO_CMD} "${NORM}CURRENT Value: NOT APPLICABLE, This service is not applicable for ${OS} OS${NORM}" | tee -a ${DATA_FILE}
+	${ECHO_CMD} "${NORM}EXPECTED Value: NOT APPLICABLE, This service is not applicable for ${OS} OS${NORM}" | tee -a ${DATA_FILE}
+	NA_NUM_CHK="${NA_NUM_CHK}:${NUM_CHK}"
+	${ECHO_CMD} "\nOUTPUT: NOT APPLICABLE" | tee -a ${DATA_FILE}
+fi
+NUM_CHK=""
+}
+
+#############################################################################
+# Verify whether ECHO-DGRAM & ECHO-STREAM (LINUX) in all platforms are disabled
+#############################################################################
+disable_echo_verify_fn()
+{
+NUM_CHK="$1"
+if [ "${OS}" = "Linux" ] ; then	
+	service_state=`chkconfig --list 2>/dev/null | grep -i "echo-dgram"`	
+	SERVICE_BOOT_GREP "ECHO DGRAM" "echo-dgram" "${service_state}" "${NUM_CHK}"
+		
+	service_state=`chkconfig --list 2>/dev/null | grep -i "echo-stream"`	
+	SERVICE_BOOT_GREP "ECHO STREAM" "echo-stream" "${service_state}" "${NUM_CHK}"
+else
+	${ECHO_CMD} "\nCOMMAND: NOT APPLICABLE\n" | tee -a ${DATA_FILE}
+	${ECHO_CMD} "${NORM}CURRENT Value: NOT APPLICABLE, This service is not applicable for ${OS} OS${NORM}" | tee -a ${DATA_FILE}
+	${ECHO_CMD} "${NORM}EXPECTED Value: NOT APPLICABLE, This service is not applicable for ${OS} OS${NORM}" | tee -a ${DATA_FILE}
+	NA_NUM_CHK="${NA_NUM_CHK}:${NUM_CHK}"
+	${ECHO_CMD} "\nOUTPUT: NOT APPLICABLE" | tee -a ${DATA_FILE}
+fi
+NUM_CHK=""
+}
+
+#############################################################################
+# Disable ECHO-DGRAM & ECHO-STREAM (LINUX) in all platforms 
+#############################################################################
+disable_echo_set_fn()
+{
+NUM_CHK="$1"
+if [ "${OS}" = "Linux" ] ; then
+	#srvc_stop "ECHO DGRAM" "echo-dgram"
+	service_state=`chkconfig --list 2>/dev/null | grep -i "echo-dgram"`	
+	SERVICE_BOOT_GREP "ECHO DGRAM" "echo-dgram" "${service_state}" "SET_DISABLE" "${NUM_CHK}"
+	
+	#srvc_stop "ECHO STREAM" "echo-stream"
+	service_state=`chkconfig --list 2>/dev/null | grep -i "echo-stream"`	
+	SERVICE_BOOT_GREP "ECHO STREAM" "echo-stream" "${service_state}" "SET_DISABLE" "${NUM_CHK}"
+else
+	${ECHO_CMD} "\nCOMMAND: NOT APPLICABLE\n" | tee -a ${DATA_FILE}
+	${ECHO_CMD} "${NORM}CURRENT Value: NOT APPLICABLE, This service is not applicable for ${OS} OS${NORM}" | tee -a ${DATA_FILE}
+	${ECHO_CMD} "${NORM}EXPECTED Value: NOT APPLICABLE, This service is not applicable for ${OS} OS${NORM}" | tee -a ${DATA_FILE}
+	NA_NUM_CHK="${NA_NUM_CHK}:${NUM_CHK}"
+	${ECHO_CMD} "\nOUTPUT: NOT APPLICABLE" | tee -a ${DATA_FILE}
+fi
+NUM_CHK=""
+}
+
+#############################################################################
+# Verify whether TCPMUX-SERVER (LINUX) in all platforms is disabled
+#############################################################################
+disable_tcpmux_verify_fn()
+{
+NUM_CHK="$1"
+if [ "${OS}" = "Linux" ] ; then	
+	service_state=`chkconfig --list 2>/dev/null | grep -i "tcpmux-server"`	
+	SERVICE_BOOT_GREP "TCPMUX SERVER" "tcpmux-server" "${service_state}" "${NUM_CHK}"
+else
+	${ECHO_CMD} "\nCOMMAND: NOT APPLICABLE\n" | tee -a ${DATA_FILE}
+	${ECHO_CMD} "${NORM}CURRENT Value: NOT APPLICABLE, This service is not applicable for ${OS} OS${NORM}" | tee -a ${DATA_FILE}
+	${ECHO_CMD} "${NORM}EXPECTED Value: NOT APPLICABLE, This service is not applicable for ${OS} OS${NORM}" | tee -a ${DATA_FILE}
+	NA_NUM_CHK="${NA_NUM_CHK}:${NUM_CHK}"
+	${ECHO_CMD} "\nOUTPUT: NOT APPLICABLE" | tee -a ${DATA_FILE}
+fi
+NUM_CHK=""
+}
+
+#############################################################################
+# Disable TCPMUX-SERVER(LINUX) in all platforms 
+#############################################################################
+disable_tcpmux_set_fn()
+{
+NUM_CHK="$1"
+if [ "${OS}" = "Linux" ] ; then
+	#srvc_stop "TCPMUX SERVER" "tcpmux-server"
+	service_state=`chkconfig --list 2>/dev/null | grep -i "tcpmux-server"`	
+	SERVICE_BOOT_GREP "TCPMUX SERVER" "tcpmux-server" "${service_state}" "SET_DISABLE" "${NUM_CHK}"
+else
+	${ECHO_CMD} "\nCOMMAND: NOT APPLICABLE\n" | tee -a ${DATA_FILE}
+	${ECHO_CMD} "${NORM}CURRENT Value: NOT APPLICABLE, This service is not applicable for ${OS} OS${NORM}" | tee -a ${DATA_FILE}
+	${ECHO_CMD} "${NORM}EXPECTED Value: NOT APPLICABLE, This service is not applicable for ${OS} OS${NORM}" | tee -a ${DATA_FILE}
+	NA_NUM_CHK="${NA_NUM_CHK}:${NUM_CHK}"
+	${ECHO_CMD} "\nOUTPUT: NOT APPLICABLE" | tee -a ${DATA_FILE}
+fi
+NUM_CHK=""
+}
+
+#############################################################################
+# Verify whether login on serial port is enabled/disabled in HP-UX  
+#############################################################################
+disable_login_on_serial_ports_verify_fn()
+{
+NUM_CHK="$1"
+if [ "${OS}" = "HP-UX" ] ; then
+	${ECHO_CMD} "\nCOMMAND: cat ${INITTAB_FILE} | egrep \"^.*getty.*tty.*$\"\n" | tee -a ${DATA_FILE}
+	egrep "^.*getty.*tty.*$" ${INITTAB_FILE} | egrep -v "^#|egrep" >/dev/null 2>&1 
+	if [ $? -eq 0 ] ; then
+		${ECHO_CMD} "CURRENT VALUE: NOT AS PER EXPECTED VALUE, Login prompts on serial ports are not disabled" | tee -a ${DATA_FILE}
+		${ECHO_CMD} "EXPECTED VALUE: Login prompts on serial ports should be in disable state" | tee -a ${DATA_FILE}
+		FAILED_NUM_CHK="${FAILED_NUM_CHK}:${NUM_CHK}"
+	else
+		${ECHO_CMD} "CURRENT VALUE: AS PER EXPECTED VALUE, Login prompts are disabled" | tee -a ${DATA_FILE}
+		${ECHO_CMD} "EXPECTED VALUE: Login prompts should be in disable state" | tee -a ${DATA_FILE}
+		SUCCESS_NUM_CHK="${SUCCESS_NUM_CHK}:${NUM_CHK}"
+	fi
+	${ECHO_CMD} "\nOUTPUT: `cat ${INITTAB_FILE} | egrep \"^.*getty.*tty.*$\"`" | tee -a ${DATA_FILE}
+else
+	${ECHO_CMD} "\nCOMMAND: NOT APPLICABLE\n" | tee -a ${DATA_FILE}
+	${ECHO_CMD} "CURRENT VALUE: AS PER EXPECTED VALUE, This service is not applicable for ${OS} OS${NORM}" | tee -a ${DATA_FILE}
+	${ECHO_CMD} "${NORM}EXPECTED Value: NOT APPLICABLE, This service is not applicable for ${OS} OS${NORM}" | tee -a ${DATA_FILE}
+	${ECHO_CMD} "\nOUTPUT: NA" | tee -a ${DATA_FILE}
+	NA_NUM_CHK="${NA_NUM_CHK}:${NUM_CHK}"
+fi
+NUM_CHK=""
+}
+
+#############################################################################
+# Disable login on serial port is in HP-UX  
+#############################################################################
+disable_login_on_serial_ports_set_fn()
+{
+NUM_CHK="$1"
+if [ "${OS}" = "HP-UX" ] ; then
+	${ECHO_CMD} "\nCOMMAND: cat ${INITTAB_FILE} | egrep \"^.*getty.*tty.*$\"\n" | tee -a ${DATA_FILE}
+	egrep "^.*getty.*tty.*$" ${INITTAB_FILE} | egrep -v "^#|egrep" >/dev/null 2>&1 
+	if [ $? -eq 0 ] ; then
+		${ECHO_CMD} "${NORM}CURRENT VALUE: AS PER EXPECTED VALUE, Login prompts on serial ports are not disabled${NORM}" | tee -a ${DATA_FILE}
+		#sed -i.bak "/^.*getty.*tty.*$/ s/^/#/"	${INITTAB_FILE}
+		sed "s/^.*getty.*tty.*$/#&/g" ${INITTAB_FILE} > ${INITTAB_FILE}.bak && cp ${INITTAB_FILE}.bak ${INITTAB_FILE}
+		${ECHO_CMD} "${NORM}EXPECTED VALUE: Login prompts on serial ports are disable now" | tee -a ${DATA_FILE}
+		FAILED_NUM_CHK="${FAILED_NUM_CHK}:${NUM_CHK}"
+	else
+		${ECHO_CMD} "${NORM}CURRENT VALUE: AS PER EXPECTED VALUE, Login prompts are disabled${NORM}" | tee -a ${DATA_FILE}
+		${ECHO_CMD} "${NORM}EXPECTED VALUE: Login prompts should be in disable state${NORM}" | tee -a ${DATA_FILE}
+		SUCCESS_NUM_CHK="${SUCCESS_NUM_CHK}:${NUM_CHK}"
+	fi
+	${ECHO_CMD} "\nOUTPUT: `cat ${INITTAB_FILE} | egrep \"^.*getty.*tty.*$\"`" | tee -a ${DATA_FILE}
+else
+	${ECHO_CMD} "\nCOMMAND: NOT APPLICABLE\n" | tee -a ${DATA_FILE}
+	${ECHO_CMD} "CURRENT VALUE: AS PER EXPECTED VALUE, This service is not applicable for ${OS} OS${NORM}" | tee -a ${DATA_FILE}
+	${ECHO_CMD} "${NORM}EXPECTED Value: NOT APPLICABLE, This service is not applicable for ${OS} OS${NORM}" | tee -a ${DATA_FILE}
+	${ECHO_CMD} "\nOUTPUT: NA" | tee -a ${DATA_FILE}
+	NA_NUM_CHK="${NA_NUM_CHK}:${NUM_CHK}"
+fi
+NUM_CHK=""
+}
+
+#############################################################################
+# Verify whether stack protection is enabled / disabled. It should be enabled to protect buffer overflow
+############################################################################
+enable_stack_protection_verify_fn()
+{
+NUM_CHK="$1"
+if [ "${OS}" = "HP-UX" ] ; then
+	${ECHO_CMD} "\nCOMMAND: kctune | grep executable_stack | awk '{print \$2}'\n" | tee -a ${DATA_FILE}
+	EXECUTABLE_STACK=`kctune | grep executable_stack | awk '{print $2}'`
+	if [ "${EXECUTABLE_STACK}" -ne 0 ] ; then
+		${ECHO_CMD} "${NORM}CURRENT VALUE: NOT AS PER EXPECTED VALUE, Stack protection is not enabled${NORM}" | tee -a ${DATA_FILE}
+		${ECHO_CMD} "${NORM}EXPECTED VALUE: Stack protection should be enabled${NORM}" | tee -a ${DATA_FILE}
+		FAILED_NUM_CHK="${FAILED_NUM_CHK}:${NUM_CHK}"
+	else
+		${ECHO_CMD} "${NORM}CURRENT VALUE: AS PER EXPECTED VALUE, Stack protection is enabled${NORM}" | tee -a ${DATA_FILE}
+		${ECHO_CMD} "${NORM}EXPECTED VALUE: Stack protection should be enabled${NORM}" | tee -a ${DATA_FILE}
+		SUCCESS_NUM_CHK="${SUCCESS_NUM_CHK}:${NUM_CHK}"		
+	fi
+	${ECHO_CMD} "\nOUTPUT: `kctune | grep executable_stack | awk '{print $2}'`" | tee -a ${DATA_FILE}
+elif [ "${OS}" = "SunOS" ] ; then
+	#Compare the string/flag /etc/rc.config.d/namesvrs
+	string_verify_fn "noexec_user_stack" "/etc/system" "1" "=" "${NUM_CHK}"
+else
+	${ECHO_CMD} "\nCOMMAND: NOT APPLICABLE\n" | tee -a ${DATA_FILE}
+	${ECHO_CMD} "CURRENT VALUE: AS PER EXPECTED VALUE, This service is not applicable for ${OS} OS${NORM}" | tee -a ${DATA_FILE}
+	${ECHO_CMD} "${NORM}EXPECTED Value: NOT APPLICABLE, This service is not applicable for ${OS} OS${NORM}" | tee -a ${DATA_FILE}
+	${ECHO_CMD} "\nOUTPUT: NA" | tee -a ${DATA_FILE}
+	NA_NUM_CHK="${NA_NUM_CHK}:${NUM_CHK}"
+fi
+NUM_CHK=""
+}
+
+#############################################################################
+# Enable stack protection to protect buffer overflow
+############################################################################
+enable_stack_protection_set_fn()
+{
+NUM_CHK="$1"
+if [ "${OS}" = "HP-UX" ] ; then
+	${ECHO_CMD} "\nCOMMAND: kctune | grep executable_stack | awk '{print \$2}'\n" | tee -a ${DATA_FILE}
+	EXECUTABLE_STACK=`kctune | grep executable_stack | awk '{print $2}'`
+	if [ "${EXECUTABLE_STACK}" -ne 0 ] ; then	
+		kctune -K executable_stack=0
+		if [ $? -eq 0 ] ; then		
+			${ECHO_CMD} "${NORM}CURRENT VALUE: AS PER EXPECTED VALUE, Stack protection is enabled${NORM}" | tee -a ${DATA_FILE}	
+			${ECHO_CMD} "${NORM}EXPECTED VALUE: Stack protection should be enabled${NORM}" | tee -a ${DATA_FILE}
+			SUCCESS_NUM_CHK="${SUCCESS_NUM_CHK}:${NUM_CHK}"	
+		else
+			${ECHO_CMD} "${NORM}CURRENT VALUE: NOT AS PER EXPECTED VALUE, Stack protection is not enabled${NORM}" | tee -a ${DATA_FILE}	
+			${ECHO_CMD} "${NORM}EXPECTED VALUE: Stack protection should be enabled${NORM}" | tee -a ${DATA_FILE}
+			FAILED_NUM_CHK="${FAILED_NUM_CHK}:${NUM_CHK}"	
+		fi
+	else
+		${ECHO_CMD} "${NORM}CURRENT VALUE: AS PER EXPECTED VALUE, Stack protection is enabled${NORM}" | tee -a ${DATA_FILE}
+		${ECHO_CMD} "${NORM}EXPECTED VALUE: Stack protection should be enabled${NORM}" | tee -a ${DATA_FILE}
+		SUCCESS_NUM_CHK="${SUCCESS_NUM_CHK}:${NUM_CHK}"		
+	fi
+	${ECHO_CMD} "\nOUTPUT: `kctune | grep executable_stack | awk '{print $2}'`" | tee -a ${DATA_FILE}
+elif [ "${OS}" = "SunOS" ] ; then
+	#Compare the string/flag /etc/rc.config.d/namesvrs
+	string_set_fn "noexec_user_stack" "/etc/system" "1" "=" "${NUM_CHK}"
+else
+	${ECHO_CMD} "\nCOMMAND: NOT APPLICABLE\n" | tee -a ${DATA_FILE}
+	${ECHO_CMD} "CURRENT VALUE: AS PER EXPECTED VALUE, This service is not applicable for ${OS} OS${NORM}" | tee -a ${DATA_FILE}
+	${ECHO_CMD} "${NORM}EXPECTED Value: NOT APPLICABLE, This service is not applicable for ${OS} OS${NORM}" | tee -a ${DATA_FILE}
+	${ECHO_CMD} "\nOUTPUT: NA" | tee -a ${DATA_FILE}
+	NA_NUM_CHK="${NA_NUM_CHK}:${NUM_CHK}"
+fi
+NUM_CHK=""
+}
+#############################################################################
+# Verify whether CDE GUI Login is enabled/disabled in HP-UX & Solaris. It should be disabled
+############################################################################
+disable_CDE_GUI_verify_fn()
+{
+NUM_CHK="$1"
+if [ "${OS}" = "HP-UX" ] ; then
+	if [ -f "${DESKTOP_CONF}" ] ; then
+		string_verify_fn "DESKTOP" "${DESKTOP_CONF}" '""' "=" "${NUM_CHK}"
+	else
+		${ECHO_CMD} "${NORM}CURRENT VALUE: AS PER EXPECTED VALUE, CDE GUI is in disabled state${NORM}" | tee -a ${DATA_FILE}
+		${ECHO_CMD} "${NORM}EXPECTED VALUE: CDE GUI should be disabled${NORM}" | tee -a ${DATA_FILE}		
+	fi	
+elif [ "${OS}" = "SunOS" ] ; then
+	srvc_stop "CDE GUI login" "svc:/application/graphical-login/cde-login"
+	service_state=`svcs -Ho state svc:/application/graphical-login/cde-login`
+	SERVICE_BOOT_GREP "CDE GUI login" "svc:/application/graphical-login/cde-login:default" "${service_state}" "${NUM_CHK}"
+else
+	string_verify_fn "id:3:initdefault:" "${DESKTOP_CONF}" "${NUM_CHK}"
+fi
+NUM_CHK=""
+}
+
+#############################################################################
+# Disable CDE GUI Login in HP-UX & Solaris. It should be disabled
+############################################################################
+disable_CDE_GUI_set_fn()
+{
+NUM_CHK="$1"
+if [ "${OS}" = "HP-UX" ] ; then
+	if [ -f "${DESKTOP_CONF}" ] ; then
+		string_set_fn "DESKTOP" "${DESKTOP_CONF}" '""' "=" "${NUM_CHK}"
+		#ch_rc -a -p DESKTOP="" /etc/rc.config.d/desktop && ${ECHO_CMD} "CDE GUI is in disabled state" | tee -a ${DATA_FILE}
+	else
+		${ECHO_CMD} "${NORM}CURRENT VALUE: AS PER EXPECTED VALUE, CDE GUI is in disabled state${NORM}" | tee -a ${DATA_FILE}
+		${ECHO_CMD} "${NORM}EXPECTED VALUE: CDE GUI should be disabled${NORM}" | tee -a ${DATA_FILE}
+	fi
+elif [ "${OS}" = "SunOS" ] ; then
+	srvc_stop "CDE GUI login" "svc:/application/graphical-login/cde-login"
+	service_state=`svcs -Ho state svc:/application/graphical-login/cde-login`
+	SERVICE_BOOT_GREP "CDE GUI login" "svc:/application/graphical-login/cde-login:default" "${service_state}" "SET_DISABLE" "${NUM_CHK}"
+else
+	string_set_fn "id:3:initdefault:" "${DESKTOP_CONF}" "${NUM_CHK}"
+fi
+NUM_CHK=""
+}
+
+#############################################################################
+# Verify SNMP is disabled/enabled in all platforms. It should be disabled
+#############################################################################
+disable_snmp_verify_fn()
+{
+NUM_CHK="$1"
+if [ "${OS}" = "Linux" ] ; then
+	service_state=`chkconfig --list 2>/dev/null | grep -i "snmp"`	
+	SERVICE_BOOT_GREP "SNMP" "snmp" "${service_state}" "${NUM_CHK}"
+elif [ "${OS}" = "SunOS" ] ; then
+	service_state=`svcs -Ho state svc:/application/management/snmpdx:default`
+	SERVICE_BOOT_GREP "SNMP" "svc:/application/management/snmpdx:default" "${service_state}" "${NUM_CHK}"	
+elif [ "${OS}" = "HP-UX" ] ; then
+	string_verify_fn "SNMP_MIB2_START" "${SNMP_MIB2}" "0" "=" "${NUM_CHK}"
+fi
+NUM_CHK=""
+}
+
+#############################################################################
+# Disable SNMP in all platforms. It should be disabled
+#############################################################################
+disable_snmp_set_fn()
+{
+NUM_CHK="$1"
+if [ "${OS}" = "Linux" ] ; then
+	service_state=`chkconfig --list 2>/dev/null | grep -i "snmp"`	
+	SERVICE_BOOT_GREP "SNMP" "snmp" "${service_state}" "SET_DISABLE" "${NUM_CHK}"
+elif [ "${OS}" = "SunOS" ] ; then
+	service_state=`svcs -Ho state svc:/application/management/snmpdx:default`
+	SERVICE_BOOT_GREP "SNMP" "svc:/application/management/snmpdx:default" "${service_state}" "SET_DISABLE" "${NUM_CHK}"	 
+elif [ "${OS}" = "HP-UX" ] ; then
+	string_set_fn "SNMP_MIB2_START" "${SNMP_MIB2}" "0" "=" "${NUM_CHK}"
+fi	
+NUM_CHK=""
+}
+
+#############################################################################
+# Verify whether Strong TCP Sequence Number Generation in SunOS is enabled and set as 2.
+#############################################################################
+enable_random_strong_tcp_seq_verify_fn()
+{
+NUM_CHK="$1"
+if [ "${OS}" = "SunOS" ] ; then
+	string_verify_fn "TCP_STRONG_ISS" "/etc/default/inetinit" "2" "=" "${NUM_CHK}"
+	ndd -get /dev/tcp tcp_strong_iss | grep "2" >/dev/null 2>&1
+	if [ $? -eq 0 ] ; then
+		${ECHO_CMD} "CURRENT VALUE: AS PER EXPECTED VALUE, Enable Strong TCP Sequence Number Generation is set to 2" | tee -a ${DATA_FILE}
+		${ECHO_CMD} "EXPECTED VALUE: Enable Strong TCP Sequence Number Generation should be set to 2" | tee -a ${DATA_FILE}
+		SUCCESS_NUM_CHK="${SUCCESS_NUM_CHK}:${NUM_CHK}"
+	else
+		${ECHO_CMD} "CURRENT VALUE: NOT AS PER EXPECTED VALUE, Enable Strong TCP Sequence Number Generation is not set to 2" | tee -a ${DATA_FILE}
+		${ECHO_CMD} "EXPECTED VALUE: Enable Strong TCP Sequence Number Generation should be set to 2" | tee -a ${DATA_FILE}
+		FAILED_NUM_CHK="${FAILED_NUM_CHK}:${NUM_CHK}"
+	fi
+else
+	${ECHO_CMD} "\nCOMMAND: NOT APPLICABLE\n" | tee -a ${DATA_FILE}
+	${ECHO_CMD} "CURRENT VALUE: AS PER EXPECTED VALUE, This service is not applicable for ${OS} OS" | tee -a ${DATA_FILE}
+	${ECHO_CMD} "EXPECTED Value: NOT APPLICABLE, This service is not applicable for ${OS} OS" | tee -a ${DATA_FILE}
+	${ECHO_CMD} "\nOUTPUT: NA" | tee -a ${DATA_FILE}
+	NA_NUM_CHK="${NA_NUM_CHK}:${NUM_CHK}"
+fi
+NUM_CHK=""	
+}
+
+#############################################################################
+# Set Strong TCP Sequence Number Generation in SunOS and It should be set as 2.
+#############################################################################
+enable_random_strong_tcp_seq_set_fn()
+{
+NUM_CHK="$1"
+if [ "${OS}" = "SunOS" ] ; then
+	string_set_fn "TCP_STRONG_ISS" "/etc/default/inetinit" "2" "=" "${NUM_CHK}"
+	ndd -get /dev/tcp tcp_strong_iss | grep "2" >/dev/null 2>&1
+	if [ $? -eq 0 ] ; then
+		${ECHO_CMD} "CURRENT VALUE: AS PER EXPECTED VALUE, Enable Strong TCP Sequence Number Generation is set to 2" | tee -a ${DATA_FILE}
+		${ECHO_CMD} "EXPECTED VALUE: Enable Strong TCP Sequence Number Generation should be set to 2" | tee -a ${DATA_FILE}
+		SUCCESS_NUM_CHK="${SUCCESS_NUM_CHK}:${NUM_CHK}"
+	else
+		ndd -set /dev/tcp tcp_strong_iss 2
+		${ECHO_CMD} "CURRENT VALUE: AS PER EXPECTED VALUE, Enable Strong TCP Sequence Number Generation is set to 2" | tee -a ${DATA_FILE}
+		${ECHO_CMD} "EXPECTED VALUE: Enable Strong TCP Sequence Number Generation should be set to 2" | tee -a ${DATA_FILE}
+		SUCCESS_NUM_CHK="${SUCCESS_NUM_CHK}:${NUM_CHK}"
+	fi
+else
+	${ECHO_CMD} "\nCOMMAND: NOT APPLICABLE\n" | tee -a ${DATA_FILE}
+	${ECHO_CMD} "CURRENT VALUE: AS PER EXPECTED VALUE, This service is not applicable for ${OS} OS" | tee -a ${DATA_FILE}
+	${ECHO_CMD} "EXPECTED Value: NOT APPLICABLE, This service is not applicable for ${OS} OS" | tee -a ${DATA_FILE}
+	${ECHO_CMD} "\nOUTPUT: NA" | tee -a ${DATA_FILE}
+	NA_NUM_CHK="${NA_NUM_CHK}:${NUM_CHK}"
+fi
+NUM_CHK=""	
+}
+
+#############################################################################
+# Verify whether FTP access to disallowed to system users like root, bin, sys, adm & etc
+#############################################################################
+restrict_ftp_user_verify_fn()
+{
+NUM_CHK="$1"
+FLAG=0
+SYSUSERS="root daemon bin sys adm lp uucp nuucp nobody hpdb useradm"
+
+${ECHO_CMD} "\nCOMMAND: grep <<user>> ${FTP_USER}\n" | tee -a ${DATA_FILE}
+	
+if [ ! -f ${FTP_USER} ] ; then
+	${ECHO_CMD} "${NORM}CURRENT VALUE: NOT AS PER EXPECTED VALUE, ${FTP_USER} file is not present${NORM}" | tee -a ${DATA_FILE}
+	FLAG=1
+else
+	for user in ${SYSUSERS}
+	do
+		grep "${user}" "${FTP_USER}" | egrep -v "^#|grep" >/dev/null 2>&1 
+		if [ $? -eq 0 ] ; then
+			${ECHO_CMD} "${NORM}CURRENT VALUE: AS PER EXPECTED VALUE, ${user} is exists in ${FTP_USER} file${NORM}" | tee -a ${DATA_FILE}
+		else
+			${ECHO_CMD} "${NORM}CURRENT VALUE: NOT AS PER EXPECTED VALUE, ${user} is not exists in ${FTP_USER} file${NORM}" | tee -a ${DATA_FILE}
+			FLAG=1
+		fi
+	done
+fi
+if [ ${FLAG} -ne 0 ] ; then
+	${ECHO_CMD} "${NORM}\nEXPECTED VALUE: SYSTEM USERS should be added to ${FTP_USER} file${NORM}" | tee -a ${DATA_FILE}
+	FAILED_NUM_CHK="${FAILED_NUM_CHK}:${NUM_CHK}"
+else
+	${ECHO_CMD} "${NORM}\nEXPECTED VALUE: SYSTEM USERS should be added to ${FTP_USER} file${NORM}" | tee -a ${DATA_FILE}
+	SUCCESS_NUM_CHK="${SUCCESS_NUM_CHK}:${NUM_CHK}"
+fi
+NUM_CHK=""
+}
+
+#############################################################################
+# Disallow FTP access to system users like root, bin, sys, adm & etc
+#############################################################################
+restrict_ftp_user_set_fn()
+{
+NUM_CHK="$1"
+SYSUSERS="root daemon bin sys adm lp uucp nuucp nobody hpdb useradm"
+FLAG=0
+
+if [ ! -f ${FTP_USER} ] ; then
+	${ECHO_CMD} "${NORM}CURRENT VALUE: NOT AS PER EXPECTED VALUE, ${FTP_USER} file is not present${NORM}" >/dev/null 2>&1
+	touch ${FTP_USER}
+fi
+
+${ECHO_CMD} "\nCOMMAND: grep <<user>> ${FTP_USER}\n" | tee -a ${DATA_FILE}
+
+for user in ${SYSUSERS}
+do
+	grep "${user}" "${FTP_USER}" |egrep -v "^#|grep" >/dev/null 2>&1  
+	if [ $? -eq 0 ] ; then
+		${ECHO_CMD} "${NORM}CURRENT VALUE: AS PER EXPECTED VALUE, ${user} is exists in ${FTP_USER} file${NORM}" | tee -a ${DATA_FILE}	
+	else
+		${ECHO_CMD} "${NORM}CURRENT VALUE: NOT AS PER EXPECTED VALUE, ${user} is not exists in ${FTP_USER} file${NORM}" | tee -a ${DATA_FILE}
+		${ECHO_CMD} "$user" >> "${FTP_USER}"
+		${ECHO_CMD} "${NORM}EXPECTED VALUE: ${user} is added in ${FTP_USER} file now${NORM}" | tee -a ${DATA_FILE}
+		FLAG=0
+	fi
+done
+
+if [ ${FLAG} -ne 0 ] ; then
+	${ECHO_CMD} "${NORM}\nEXPECTED VALUE: SYSTEM USERS should be added to ${FTP_USER} file${NORM}" | tee -a ${DATA_FILE}
+	FAILED_NUM_CHK="${FAILED_NUM_CHK}:${NUM_CHK}"
+else
+	${ECHO_CMD} "${NORM}\nEXPECTED VALUE: SYSTEM USERS should be added to ${FTP_USER} file${NORM}" | tee -a ${DATA_FILE}
+	SUCCESS_NUM_CHK="${SUCCESS_NUM_CHK}:${NUM_CHK}"
+fi
+NUM_CHK=""
+}
+
+#############################################################################
+# Verify function to check whether syslog is accepting messages from network
+#############################################################################
+prevent_syslog_verify_fn()
+{
+NUM_CHK="$1"
+if [ "${OS}" = "HP-UX" ] ;then
+	string_verify_fn  SYSLOGD_OPTIONS=\"-N -D\"  "${SYSLOGD_FILE}" "${NUM_CHK}"
+elif [ "${OS}" = "SunOS" ] ; then
+	string_verify_fn  "LOG_FROM_REMOTE=NO"  "${SYSLOGD_FILE}" "${NUM_CHK}"
+elif [ "${OS}" = "Linux" ] ; then
+	if [ -f /etc/sysconfig/syslog ] ; then
+		FILE="/etc/sysconfig/syslog"
+	else
+		FILE="/etc/sysconfig/rsyslog"
+	fi
+	
+	if [ -f "${FILE}" ] ;then
+		${ECHO_CMD} "\nCOMMAND: grep SYSLOGD_OPTIONS ${FILE}\n" | tee -a ${DATA_FILE}
+		grep SYSLOGD_OPTIONS ${FILE} | grep "-r" > /dev/null 2>&1
+		if [ $? -eq 0 ] ; then
+			${ECHO_CMD} "CURRENT VALUE: NOT AS PER EXPECTED VALUE, SYSLOGD_OPTIONS in ${FILE} file set with -r option" | tee -a ${DATA_FILE}
+			FAILED_NUM_CHK="${FAILED_NUM_CHK}:${NUM_CHK}"
+		else
+			${ECHO_CMD} "CURRENT VALUE: AS PER EXPECTED VALUE, SYSLOGD_OPTIONS in ${FILE} file is not set with -r option" | tee -a ${DATA_FILE}
+            SUCCESS_NUM_CHK="${SUCCESS_NUM_CHK}:${NUM_CHK}"
+		fi
+		${ECHO_CMD} "EXPECTED VALUE: SYSLOGD_OPTIONS in ${FILE} file should not be set with -r option" | tee -a ${DATA_FILE}
+		${ECHO_CMD} "\nOUTPUT: `grep SYSLOGD_OPTIONS ${FILE}`" | tee -a ${DATA_FILE}
+		
+		${ECHO_CMD} "\nCOMMAND: ps -ef | grep syslog | grep -v grep\n" | tee -a ${DATA_FILE}
+		ps -ef | grep syslog | grep -v grep | grep "-r" > /dev/null 2>&1
+		if [ $? -eq 0 ] ;then
+			${ECHO_CMD} "CURRENT VALUE: NOT AS PER EXPECTED VALUE, Process syslog is running with -r option set" | tee -a ${DATA_FILE}
+			FAILED_NUM_CHK="${FAILED_NUM_CHK}:${NUM_CHK}"
+		else
+			${ECHO_CMD} "CURRENT VALUE: AS PER EXPECTED VALUE, Process syslog is not set with -r option" | tee -a ${DATA_FILE}
+			SUCCESS_NUM_CHK="${SUCCESS_NUM_CHK}:${NUM_CHK}"
+		fi
+		${ECHO_CMD} "EXPECTED VALUE: Process syslog should not be set with -r option" | tee -a ${DATA_FILE}
+		${ECHO_CMD} "\nOUTPUT: `ps -ef | grep syslog | grep -v grep`" | tee -a ${DATA_FILE}
+	else
+		${ECHO_CMD} "CURRENT VALUE: AS PER EXPECTED VALUE, ${FILE} file is not present" | tee -a ${DATA_FILE}
+		${ECHO_CMD} "EXPECTED VALUE: SYSLOGD_OPTIONS in ${FILE} file should not be set with -r option" | tee -a ${DATA_FILE}
+		SUCCESS_NUM_CHK="${SUCCESS_NUM_CHK}:${NUM_CHK}"
+	fi
+	
+	if [ -f /etc/rsyslog.conf ] ;then
+		${ECHO_CMD} "\nCOMMAND: egrep \"ModLoad imudp|UDPServerRun 514|ModLoad imtcp|InputTCPServerRun 514\" /etc/rsyslog.conf\n" | tee -a ${DATA_FILE}
+		VALUE=`egrep "ModLoad imudp|UDPServerRun 514|ModLoad imtcp|InputTCPServerRun 514" /etc/rsyslog.conf | grep -v "#" | wc -l`
+		if [ ${VALUE} -gt 0 ] ;then
+			${ECHO_CMD} "CURRENT VALUE: NOT AS PER EXPECTED VALUE, UDP and TCP Settings are not disabled in /etc/rsyslog.conf file" | tee -a ${DATA_FILE}
+            FAILED_NUM_CHK="${FAILED_NUM_CHK}:${NUM_CHK}"
+		else
+			${ECHO_CMD} "CURRENT VALUE: AS PER EXPECTED VALUE, UDP and TCP Settings are disabled in /etc/rsyslog.conf file" | tee -a ${DATA_FILE}
+            SUCCESS_NUM_CHK="${SUCCESS_NUM_CHK}:${NUM_CHK}"
+		fi
+		${ECHO_CMD} "EXPECTED VALUE: UDP and TCP Settings should be in disabled state in /etc/rsyslog.conf file" | tee -a ${DATA_FILE}
+		${ECHO_CMD} "\nOUTPUT: `egrep \"ModLoad imudp|UDPServerRun 514|ModLoad imtcp|InputTCPServerRun 514\" /etc/rsyslog.conf`" | tee -a ${DATA_FILE}
+	fi
+	${ECHO_CMD} "\nCOMMAND: netstat -an | egrep \"^tcp|^udp\" | egrep \"[*:]514\"\n" | tee -a ${DATA_FILE}
+	NETSTAT_VAL=`netstat -an | egrep "^tcp|^udp" | egrep '[*:]514 '| awk '{print $6;exit}'`
+	EXPECTED_NETSTAT_VAL="LISTEN"
+	if [ "${EXPECTED_NETSTAT_VAL}" = "${NETSTAT_VAL}" ] ;then
+		${ECHO_CMD} "CURRENT VALUE: NOT AS PER EXPECTED VALUE, Port 514 is in LISTEN State" | tee -a ${DATA_FILE}
+        FAILED_NUM_CHK="${FAILED_NUM_CHK}:${NUM_CHK}"
+	else
+		${ECHO_CMD} "CURRENT VALUE: AS PER EXPECTED VALUE, Port 514 is not in LISTEN State" | tee -a ${DATA_FILE}
+		SUCCESS_NUM_CHK="${SUCCESS_NUM_CHK}:${NUM_CHK}"
+    fi
+	${ECHO_CMD} "EXPECTED VALUE: Port 514 should not be in LISTEN State" | tee -a ${DATA_FILE}
+	${ECHO_CMD} "\nOUTPUT: `netstat -an | egrep \"^tcp|^udp\" | egrep \"[*:]514\"`" | tee -a ${DATA_FILE}
+fi
+
+if [ "${OS}" = "Linux" ] ;then
+	${ECHO_CMD} "\nCOMMAND: chkconfig --list | egrep -i 'syslog|rsyslog'\n" | tee -a ${DATA_FILE}
+	SYS_VAL=`chkconfig --list 2>/dev/null | egrep 'syslog|rsyslog'| awk '{print $1}'`
+	if [ -z "${SYS_VAL}" ] ;then
+		${ECHO_CMD} "${NORM}CURRENT VALUE: AS PER EXPECTED VALUE, Service syslog or rsyslog is not installed in ${OS} OS${NORM}" | tee -a ${DATA_FILE}
+		${ECHO_CMD} "${NORM}EXPECTED VALUE: Service syslog or rsyslog should be in ENABLED state${NORM}" | tee -a ${DATA_FILE}
+		SUCCESS_NUM_CHK="${SUCCESS_NUM_CHK}:${NUM_CHK}"
+	else
+		chkconfig --list 2>/dev/null | egrep 'syslog|rsyslog' | grep "3:on" >/dev/null
+		if [ $? -eq 0 ] ;then
+			${ECHO_CMD} "CURRENT VALUE: AS PER EXPECTED VALUE, Service ${SYS_VAL} is in ENABLED state" | tee -a ${DATA_FILE}
+			${ECHO_CMD} "EXPECTED VALUE: Service ${SYS_VAL} should be in ENABLED state" | tee -a ${DATA_FILE}
+			SUCCESS_NUM_CHK="${SUCCESS_NUM_CHK}:${NUM_CHK}"
+        else
+			${ECHO_CMD} "CURRENT VALUE: NOT AS PER EXPECTED VALUE, Service ${SYS_VAL} is in DISABLED state" | tee -a ${DATA_FILE}
+			${ECHO_CMD} "EXPECTED VALUE: Service ${SYS_VAL} should be in ENABLED state" | tee -a ${DATA_FILE}
+			FAILED_NUM_CHK="${FAILED_NUM_CHK}:${NUM_CHK}"
+        fi
+	fi
+	${ECHO_CMD} "\nOUTPUT: `chkconfig --list | egrep -i 'syslog|rsyslog'`" | tee -a ${DATA_FILE}
+fi
+NUM_CHK=""
+}
+
+#############################################################################
+# set function to prevent syslog not to accept messages from network
+#############################################################################
+prevent_syslog_set_fn()
+{
+NUM_CHK="$1"
+if [ "${OS}" = "HP-UX" ] ;then
+	string_set_fn  SYSLOGD_OPTIONS=\"-N -D\" "${SYSLOGD_FILE}" "${NUM_CHK}"
+elif [ "${OS}" = "SunOS" ] ; then
+	string_set_fn  "LOG_FROM_REMOTE=NO" "${SYSLOGD_FILE}" "${NUM_CHK}"
+elif [ "${OS}" = "Linux" ] ; then
+	if [ -f /etc/sysconfig/syslog ] ; then
+		FILE="/etc/sysconfig/syslog"
+	else
+		FILE="/etc/sysconfig/rsyslog"
+	fi
+	
+	if [ -f "${FILE}" ] ;then
+		${ECHO_CMD} "\nCOMMAND: grep SYSLOGD_OPTIONS ${FILE}\n" | tee -a ${DATA_FILE}
+		grep SYSLOGD_OPTIONS ${FILE} | grep "-r" > /dev/null 2>&1
+		if [ $? -eq 0 ] ; then
+			${ECHO_CMD} "CURRENT VALUE: NOT AS PER EXPECTED VALUE, SYSLOGD_OPTIONS in ${FILE} file set with -r option" | tee -a ${DATA_FILE}
+			grep -w "5" /etc/redhat-release
+			if [ $? -eq 0 ] ; then
+				string_set_fn "SYSLOGD_OPTIONS=\"-m 0\"" "${FILE}" "${NUM_CHK}"
+			else	
+				string_set_fn "SYSLOGD_OPTIONS=\"-c 5\"" "${FILE}" "${NUM_CHK}"
+			fi
+		else
+			${ECHO_CMD} "CURRENT VALUE: AS PER EXPECTED VALUE, SYSLOGD_OPTIONS in ${FILE} file is not set with -r option" | tee -a ${DATA_FILE}
+            SUCCESS_NUM_CHK="${SUCCESS_NUM_CHK}:${NUM_CHK}"
+		fi
+		${ECHO_CMD} "EXPECTED VALUE: SYSLOGD_OPTIONS in ${FILE} file should not be set with -r option" | tee -a ${DATA_FILE}
+		${ECHO_CMD} "\nOUTPUT: `grep SYSLOGD_OPTIONS ${FILE}`" | tee -a ${DATA_FILE}
+	else
+		${ECHO_CMD} "CURRENT VALUE: AS PER EXPECTED VALUE, ${FILE} file is not present" | tee -a ${DATA_FILE}
+		${ECHO_CMD} "EXPECTED VALUE: SYSLOGD_OPTIONS in ${FILE} file should not be set with -r option" | tee -a ${DATA_FILE}
+		SUCCESS_NUM_CHK="${SUCCESS_NUM_CHK}:${NUM_CHK}"
+	fi
+	
+	if [ -f /etc/rsyslog.conf ] ;then
+		${ECHO_CMD} "\nCOMMAND: egrep \"ModLoad imudp|UDPServerRun 514|ModLoad imtcp|InputTCPServerRun 514\" /etc/rsyslog.conf\n" | tee -a ${DATA_FILE}
+		VALUE=`egrep "ModLoad imudp|UDPServerRun 514|ModLoad imtcp|InputTCPServerRun 514" /etc/rsyslog.conf | grep -v "#" | wc -l`
+		if [ ${VALUE} -gt 0 ] ;then
+			${ECHO_CMD} "CURRENT VALUE: NOT AS PER EXPECTED VALUE, UDP and TCP Settings are not disabled in /etc/rsyslog.conf file" | tee -a ${DATA_FILE}
+            FAILED_NUM_CHK="${FAILED_NUM_CHK}:${NUM_CHK}"
+		else
+			${ECHO_CMD} "CURRENT VALUE: AS PER EXPECTED VALUE, UDP and TCP Settings are disabled in /etc/rsyslog.conf file" | tee -a ${DATA_FILE}
+            SUCCESS_NUM_CHK="${SUCCESS_NUM_CHK}:${NUM_CHK}"
+		fi
+		${ECHO_CMD} "EXPECTED VALUE: UDP and TCP Settings should be in disabled state in /etc/rsyslog.conf file" | tee -a ${DATA_FILE}
+		${ECHO_CMD} "\nOUTPUT: `egrep \"ModLoad imudp|UDPServerRun 514|ModLoad imtcp|InputTCPServerRun 514\" /etc/rsyslog.conf`" | tee -a ${DATA_FILE}
+	fi
+fi
+
+if [ "${OS}" = "Linux" ] ;then
+	${ECHO_CMD} "\nCOMMAND: chkconfig --list | egrep -i 'syslog|rsyslog'\n" | tee -a ${DATA_FILE}
+	SYS_VAL=`chkconfig --list 2>/dev/null | egrep 'syslog|rsyslog'| awk '{print $1}'`
+	if [ -z "${SYS_VAL}" ] ;then
+		${ECHO_CMD} "${GREEN_F}CURRENT VALUE: AS PER EXPECTED VALUE, Service syslog or rsyslog is not installed in ${OS} OS${NORM}" | tee -a ${DATA_FILE}
+		${ECHO_CMD} "${GREEN_F}EXPECTED VALUE: Service syslog or rsyslog should be in ENABLED state${NORM}" | tee -a ${DATA_FILE}
+		SUCCESS_NUM_CHK="${SUCCESS_NUM_CHK}:${NUM_CHK}"
+	else
+		chkconfig --list 2>/dev/null | egrep 'syslog|rsyslog' | grep "3:on" >/dev/null
+		if [ $? -eq 0 ] ;then
+			${ECHO_CMD} "CURRENT VALUE: AS PER EXPECTED VALUE, Service ${SYS_VAL} is in ENABLED state" | tee -a ${DATA_FILE}
+			${ECHO_CMD} "EXPECTED VALUE: Service ${SYS_VAL} should be in ENABLED state" | tee -a ${DATA_FILE}
+			SUCCESS_NUM_CHK="${SUCCESS_NUM_CHK}:${NUM_CHK}"
+        else
+			${ECHO_CMD} "CURRENT VALUE: NOT AS PER EXPECTED VALUE, Service ${SYS_VAL} is in DISABLED state" | tee -a ${DATA_FILE}
+			chkconfig ${SYS_VAL} on
+			${ECHO_CMD} "EXPECTED VALUE: AS PER EXPECTED VALUE, Service ${SYS_VAL} is ENABLED" | tee -a ${DATA_FILE}
+			FAILED_NUM_CHK="${FAILED_NUM_CHK}:${NUM_CHK}"
+        fi
+	fi
+	${ECHO_CMD} "\nOUTPUT: `chkconfig --list | egrep -i 'syslog|rsyslog'`" | tee -a ${DATA_FILE}
+fi
+NUM_CHK=""
+}
+
+#############################################################################
+# Verify whether screen lock is configured after 600 seconds of inactivity
+#############################################################################
+configure_screen_lock_verify_fn()
+{
+NUM_CHK="$1"
+if [ "${OS}" = "Linux" ] || [ "${OS}" = "HP-UX" ] || [ "${OS}" = "SunOS" ] ; then
+	string_verify_fn "TMOUT" "${ETC_PROFILE}" "600"  "=" "${NUM_CHK}"
+fi
+NUM_CHK=""
+}
+
+#############################################################################
+# Configure screen lock after 600 seconds of inactivity
+#############################################################################
+configure_screen_lock_set_fn()
+{
+NUM_CHK="$1"
+if [ "${OS}" = "Linux" ] || [ "${OS}" = "HP-UX" ] || [ "${OS}" = "SunOS" ] ; then
+	string_set_fn "TMOUT" "${ETC_PROFILE}" "600"  "=" "${NUM_CHK}"	
+fi
+NUM_CHK=""
+}
+
+#############################################################################
+# Verify whether avahi is disabled/enabled in Linux. It should be disabled
+#############################################################################
+disable_avahi_verify_fn()
+{
+NUM_CHK="$1"
+if [ "${OS}" = "Linux" ] ; then
+	service_state=`chkconfig --list 2>/dev/null | grep -i "avahi-daemon"`	
+	SERVICE_BOOT_GREP "AVAHI-DAEMON" "avahi-daemon" "${service_state}" "${NUM_CHK}"
+else
+	${ECHO_CMD} "\nCOMMAND: NOT APPLICABLE\n" | tee -a ${DATA_FILE}
+	${ECHO_CMD} "CURRENT VALUE: AS PER EXPECTED VALUE, This service is not applicable for ${OS} OS${NORM}" | tee -a ${DATA_FILE}
+	${ECHO_CMD} "${NORM}EXPECTED Value: NOT APPLICABLE, This service is not applicable for ${OS} OS${NORM}" | tee -a ${DATA_FILE}
+	${ECHO_CMD} "\nOUTPUT: NA" | tee -a ${DATA_FILE}
+	NA_NUM_CHK="${NA_NUM_CHK}:${NUM_CHK}"
+fi
+NUM_CHK=""
+}
+
+#############################################################################
+# Disable avahi-daemon in Linux. It should be disabled
+#############################################################################
+disable_avahi_set_fn()
+{
+NUM_CHK="$1"
+if [ "${OS}" = "Linux" ] ; then
+	service_state=`chkconfig --list 2>/dev/null | grep -i "avahi-daemon"`	
+	SERVICE_BOOT_GREP "AVAHI-DAEMON" "avahi-daemon" "${service_state}" "SET_DISABLE" "${NUM_CHK}"
+else
+	${ECHO_CMD} "\nCOMMAND: NOT APPLICABLE\n" | tee -a ${DATA_FILE}
+	${ECHO_CMD} "CURRENT VALUE: AS PER EXPECTED VALUE, This service is not applicable for ${OS} OS${NORM}" | tee -a ${DATA_FILE}
+	${ECHO_CMD} "${NORM}EXPECTED Value: NOT APPLICABLE, This service is not applicable for ${OS} OS${NORM}" | tee -a ${DATA_FILE}
+	${ECHO_CMD} "\nOUTPUT: NA" | tee -a ${DATA_FILE}
+	NA_NUM_CHK="${NA_NUM_CHK}:${NUM_CHK}"
+fi
+NUM_CHK=""
+}
+
+#############################################################################
+# Verify whether ignoring broadcasts request is disabled/enabled. It should be disabled 
+#############################################################################
+disable_broadcast_ping_response_verify_fn()
+{
+NUM_CHK="$1"
+if [ "${OS}" = "Linux" ] ; then
+	string_verify_fn "net.ipv4.icmp_echo_ignore_broadcasts" "/etc/sysctl.conf" "1" " = " "${NUM_CHK}"
+	${ECHO_CMD} "\nCOMMAND: /sbin/sysctl net.ipv4.icmp_echo_ignore_broadcasts\n" | tee -a ${DATA_FILE}
+	/sbin/sysctl net.ipv4.icmp_echo_ignore_broadcasts | grep -w "1" >/dev/null
+	if [ $? -eq 0 ] ; then
+		${ECHO_CMD} "${NORM}CURRENT VALUE: AS PER EXPECTED VALUE, net.ipv4.icmp_echo_ignore_broadcasts is set 1${NORM}" | tee -a ${DATA_FILE}
+		${ECHO_CMD} "${NORM}EXPECTED VALUE: net.ipv4.icmp_echo_ignore_broadcasts should be set 1${NORM}" | tee -a ${DATA_FILE}
+		SUCCESS_NUM_CHK="${SUCCESS_NUM_CHK}:${NUM_CHK}"
+	else
+		${ECHO_CMD} "${NORM}CURRENT VALUE: NOT AS PER EXPECTED VALUE, net.ipv4.icmp_echo_ignore_broadcasts is not set 1${NORM}" | tee -a ${DATA_FILE}
+		${ECHO_CMD} "${NORM}EXPECTED VALUE: net.ipv4.icmp_echo_ignore_broadcasts should be set 1${NORM}" | tee -a ${DATA_FILE}
+		FAILED_NUM_CHK="${FAILED_NUM_CHK}:${NUM_CHK}"
+	fi
+	${ECHO_CMD} "\nOUTPUT: `/sbin/sysctl net.ipv4.icmp_echo_ignore_broadcasts`" | tee -a ${DATA_FILE}
+elif [ "${OS}" = "HP-UX" ] || [ "${OS}" = "SunOS" ] ; then
+	${ECHO_CMD} "\nCOMMAND: ndd -get /dev/ip ip_respond_to_echo_broadcast\n" | tee -a ${DATA_FILE}
+	value=`ndd -get /dev/ip ip_respond_to_echo_broadcast` 
+	if [ "${value}" -eq 0 ] ; then
+		${ECHO_CMD} "${NORM}CURRENT VALUE: AS PER EXPECTED VALUE, Response to Broadcast Ping request is disabled${NORM}" | tee -a ${DATA_FILE}
+		${ECHO_CMD} "${NORM}EXPECTED VALUE: Response to Broadcast ping request should be disabled${NORM}" | tee -a ${DATA_FILE}
+		SUCCESS_NUM_CHK="${SUCCESS_NUM_CHK}:${NUM_CHK}"
+	else
+		${ECHO_CMD} "${NORM}CURRENT VALUE: NOT AS PER EXPECTED VALUE, Response to Broadcast Ping request is not disabled${NORM}" | tee -a ${DATA_FILE}
+		${ECHO_CMD} "${NORM}EXPECTED VALUE: Response to Broadcast ping request should be disabled${NORM}" | tee -a ${DATA_FILE}
+		FAILED_NUM_CHK="${FAILED_NUM_CHK}:${NUM_CHK}"
+	fi
+	${ECHO_CMD} "\nOUTPUT: `ndd -get /dev/ip ip_respond_to_echo_broadcast`" | tee -a ${DATA_FILE}
+fi
+NUM_CHK=""
+}
+
+#############################################################################
+# Disable response to  broadcast ping request . It should be disabled 
+#############################################################################
+disable_broadcast_ping_response_set_fn()
+{
+NUM_CHK="$1"
+if [ "${OS}" = "Linux" ] ; then
+	string_set_fn "net.ipv4.icmp_echo_ignore_broadcasts" "/etc/sysctl.conf" "1" " = " "${NUM_CHK}"
+	${ECHO_CMD} "\nCOMMAND: /sbin/sysctl net.ipv4.icmp_echo_ignore_broadcasts\n" | tee -a ${DATA_FILE}
+	/sbin/sysctl net.ipv4.icmp_echo_ignore_broadcasts | grep -w "1" >/dev/null
+	if [ $? -eq 0 ] ; then
+		${ECHO_CMD} "${NORM}CURRENT VALUE: AS PER EXPECTED VALUE, net.ipv4.icmp_echo_ignore_broadcasts is set 1${NORM}" | tee -a ${DATA_FILE}
+		${ECHO_CMD} "${NORM}EXPECTED VALUE: net.ipv4.icmp_echo_ignore_broadcasts should be set 1${NORM}" | tee -a ${DATA_FILE}
+		SUCCESS_NUM_CHK="${SUCCESS_NUM_CHK}:${NUM_CHK}"
+	else
+		${ECHO_CMD} "${NORM}CURRENT VALUE: NOT AS PER EXPECTED VALUE, net.ipv4.icmp_echo_ignore_broadcasts is not set 1${NORM}" | tee -a ${DATA_FILE}
+		sysctl -w net.ipv4.icmp_echo_ignore_broadcasts=1
+		${ECHO_CMD} "${NORM}EXPECTED VALUE: net.ipv4.icmp_echo_ignore_broadcasts parameter currently set 1${NORM}" | tee -a ${DATA_FILE}
+		SUCCESS_NUM_CHK="${SUCCESS_NUM_CHK}:${NUM_CHK}"
+	fi
+	${ECHO_CMD} "\nOUTPUT: `/sbin/sysctl net.ipv4.icmp_echo_ignore_broadcasts`" | tee -a ${DATA_FILE}
+elif [ "${OS}" = "HP-UX" ] || [ "${OS}" = "SunOS" ] ; then
+	${ECHO_CMD} "\nCOMMAND: ndd -get /dev/ip ip_respond_to_echo_broadcast\n" | tee -a ${DATA_FILE}
+	value=`ndd -get /dev/ip ip_respond_to_echo_broadcast` 
+	if [ "${value}" -eq 0 ] ; then
+		${ECHO_CMD} "${NORM}CURRENT VALUE: AS PER EXPECTED VALUE, Broadcast Ping response is blocked${NORM}" | tee -a ${DATA_FILE}
+		${ECHO_CMD} "${NORM}EXPECTED VALUE: kernel ip parameter need to set set as \"ndd -set /dev/ip ip_forward_directed_broadcasts 0\" to block the ping request${NORM}" | tee -a ${DATA_FILE}
+		SUCCESS_NUM_CHK="${SUCCESS_NUM_CHK}:${NUM_CHK}"
+	else
+		${ECHO_CMD} "${NORM}CURRENT VALUE: AS PER EXPECTED VALUE, Response to Broadcast Ping request is disabled${NORM}" | tee -a ${DATA_FILE}
+		ndd -set /dev/ip ip_forward_directed_broadcasts 0
+		if [ $? -eq 0 ] ; then 
+			${ECHO_CMD} "${NORM}EXPECTED VALUE: Response to Broadcast ping request should be disabled${NORM}" | tee -a ${DATA_FILE}
+			SUCCESS_NUM_CHK="${SUCCESS_NUM_CHK}:${NUM_CHK}"
+		fi	
+	fi
+	${ECHO_CMD} "\nOUTPUT: `ndd -get /dev/ip ip_respond_to_echo_broadcast`" | tee -a ${DATA_FILE}
+fi
+NUM_CHK=""
+}
+
+#############################################################################
+# verify whether  NTP service is configured as a client only 
+#############################################################################
+ntp_client_verify_fn()
+{
+NUM_CHK="$1"
+if [ "${OS}" = "Linux" ] ; then
+	string_verify_fn "restrict default kod nomodify notrap nopeer noquery" "${NTP_CONF}" "${NUM_CHK}"
+	string_verify_fn "restrict -6 default kod nomodify notrap nopeer noquery" "${NTP_CONF}" "${NUM_CHK}"
+	string_verify_fn "restrict 127.0.0.1" "${NTP_CONF}" "${NUM_CHK}"
+elif [ "${OS}" = "HP-UX" ] || [ "${OS}" = "SunOS" ] ; then
+	string_verify_fn "restrict default ignore" "${NTP_CONF}" "${NUM_CHK}"
+	string_verify_fn "restrict 137.132.0.253" "${NTP_CONF}" "${NUM_CHK}"
+	string_verify_fn "restrict 137.132.0.251" "${NTP_CONF}" "${NUM_CHK}"
+	string_verify_fn "restrict 127.0.0.1" "${NTP_CONF}" "${NUM_CHK}"
+fi
+NUM_CHK=""
+}
+
+#############################################################################
+# Configure the NTP service to act as a client only 
+#############################################################################
+ntp_client_set_fn()
+{
+NUM_CHK="$1"
+if [ "${OS}" = "Linux" ] ; then
+	string_set_fn "restrict default kod nomodify notrap nopeer noquery" "${NTP_CONF}" "${NUM_CHK}"
+	string_set_fn "restrict -6 default kod nomodify notrap nopeer noquery" "${NTP_CONF}" "${NUM_CHK}"
+	string_set_fn "restrict 127.0.0.1" "${NTP_CONF}" "${NUM_CHK}"
+elif [ "${OS}" = "HP-UX" ] || [ "${OS}" = "SunOS" ] ; then
+	string_set_fn "restrict default ignore" "${NTP_CONF}" "${NUM_CHK}"
+	string_set_fn "restrict 137.132.0.253" "${NTP_CONF}" "${NUM_CHK}"
+	string_set_fn "restrict 137.132.0.251" "${NTP_CONF}" "${NUM_CHK}"
+	string_set_fn "restrict 127.0.0.1" "${NTP_CONF}" "${NUM_CHK}"
+fi
+NUM_CHK=""
+}
+
+#############################################################################
+# verify whether syslog is capturing AUTH messages 
+#############################################################################
+syslog_auth_verify_fn()
+{
+NUM_CHK="$1"
+if [ "${OS}" = "Linux" ] ; then
+	if [  -f /etc/syslog.conf ] ; then
+		AUTH_FILE="/etc/syslog.conf" 
+		AUTH="auth" 
+	else
+		AUTH_FILE="/etc/rsyslog.conf" 
+		AUTH="authpriv"
+	fi
+	
+	${ECHO_CMD} "\nCOMMAND: egrep -i ${AUTH} ${AUTH_FILE} | egrep -v \"^#\"\n" | tee -a ${DATA_FILE}
+	value=`egrep -i ${AUTH} ${AUTH_FILE} | awk -F" " '{print $2}'`
+	${ECHO_CMD} "${value}" | egrep  -q "var/log/*"
+	if [ $? -eq 0 ] ; then
+		${ECHO_CMD} "${NORM}CURRENT VALUE: AS PER EXPECTED VALUE, ${AUTH} is set in ${AUTH_FILE}${NORM}" | tee -a ${DATA_FILE}
+		${ECHO_CMD} "${NORM}EXPECTED VALUE: ${AUTH} should be set in ${AUTH_FILE}${NORM}" | tee -a ${DATA_FILE}
+		SUCCESS_NUM_CHK="${SUCCESS_NUM_CHK}:${NUM_CHK}"
+	else
+		${ECHO_CMD} "${NORM}CURRENT VALUE: NOT AS PER EXPECTED VALUE, ${AUTH} is not set in ${AUTH_FILE}${NORM}" | tee -a ${DATA_FILE}
+		${ECHO_CMD} "${NORM}EXPECTED VALUE: ${AUTH} should be set in ${AUTH_FILE}${NORM}" | tee -a ${DATA_FILE}
+		FAILED_NUM_CHK="${FAILED_NUM_CHK}:${NUM_CHK}"
+	fi
+	${ECHO_CMD} "\nOUTPUT: `egrep -i ${AUTH} ${AUTH_FILE} | egrep -v \"^#\"`" | tee -a ${DATA_FILE}
+elif [ "${OS}" = "HP-UX" ] ; then
+	AUTH_FILE="/etc/syslog.conf"  
+	AUTH="auth.info"
+	string_verify_fn "${AUTH}" "${AUTH_FILE}" "/var/adm/authlog" " " "${NUM_CHK}"
+elif [ "${OS}" = "SunOS" ] ; then
+	AUTH_FILE="/etc/syslog.conf"  
+	AUTH="auth.notice"
+	string_verify_fn "${AUTH}" "${AUTH_FILE}" "/var/log/auth.messages" " " "${NUM_CHK}"
+fi
+NUM_CHK=""
+}
+
+#############################################################################
+# capture AUTH messages in syslog conf files 
+#############################################################################
+syslog_auth_set_fn()
+{
+NUM_CHK="$1"
+if [ "${OS}" = "Linux" ] ; then
+	if [  -f /etc/syslog.conf ] ; then
+		AUTH_FILE="/etc/syslog.conf" 
+		AUTH="auth" 
+	else
+		AUTH_FILE="/etc/rsyslog.conf" 
+		AUTH="authpriv"
+	fi
+	
+	${ECHO_CMD} "\nCOMMAND: egrep -i ${AUTH} ${AUTH_FILE} | egrep -v \"^#\"\n" | tee -a ${DATA_FILE}
+	value=`egrep -i ${AUTH} ${AUTH_FILE} | awk -F" " '{print $2}'`
+	${ECHO_CMD} "${value}" | egrep  -q "var/log/*"
+	if [ $? -eq 0 ] ; then
+		${ECHO_CMD} "${NORM}CURRENT VALUE: AS PER EXPECTED VALUE, ${AUTH} is set in ${AUTH_FILE}${NORM}" | tee -a ${DATA_FILE}
+		${ECHO_CMD} "${NORM}EXPECTED VALUE: ${AUTH} should be set in ${AUTH_FILE}${NORM}" | tee -a ${DATA_FILE}
+		SUCCESS_NUM_CHK="${SUCCESS_NUM_CHK}:${NUM_CHK}"
+	else
+		${ECHO_CMD} "${NORM}CURRENT VALUE: NOT AS PER EXPECTED VALUE, ${AUTH} is not set in ${AUTH_FILE}${NORM}" | tee -a ${DATA_FILE}
+		#sed -i.bak "/^${AUTH}/ s/^/#/"  ${AUTH_FILE}
+		sed "s/^${AUTH}/#&/g" ${AUTH_FILE} > ${AUTH_FILE}.bak && cp ${AUTH_FILE}.bak ${AUTH_FILE}
+		${INITTAB_FILE}
+		${ECHO_CMD} "authpriv.*						/var/log/secure" >> ${AUTH_FILE}
+		${ECHO_CMD} "authpriv.*						/var/log/authlog" >> ${AUTH_FILE}
+		${ECHO_CMD} "${NORM}EXPECTED VALUE: ${AUTH} is set as expected${NORM}" | tee -a ${DATA_FILE}
+		SUCCESS_NUM_CHK="${SUCCESS_NUM_CHK}:${NUM_CHK}"
+	fi
+	${ECHO_CMD} "\nOUTPUT: `egrep -i ${AUTH} ${AUTH_FILE} | egrep -v \"^#\"`" | tee -a ${DATA_FILE}
+elif [ "${OS}" = "HP-UX" ] ; then
+	AUTH_FILE="/etc/syslog.conf"  
+	AUTH="auth.info"
+	string_set_fn "${AUTH}" "${AUTH_FILE}" "/var/adm/authlog" " " "${NUM_CHK}"
+elif [ "${OS}" = "SunOS" ] ; then
+	AUTH_FILE="/etc/syslog.conf"  
+	AUTH="auth.notice"
+	string_set_fn "${AUTH}" "${AUTH_FILE}" "/var/log/auth.messages" " " "${NUM_CHK}"
+fi
+NUM_CHK=""
+}
+
+#############################################################################
+# capture Failed login attempts 
+#############################################################################
+log_failed_login_attempts_verify_fn()
+{
+${ECHO_CMD} "" | tee -a ${DATA_FILE}
+${ECHO_CMD} "----------------------------------------------------------------" | tee -a ${DATA_FILE}
+${ECHO_CMD} "6.2.1  Configure /etc/syslog.conf to transfer all system Security logs to archsight servers(CERT Team)" | tee -a ${DATA_FILE}
+${ECHO_CMD} "----------------------------------------------------------------" | tee -a ${DATA_FILE}
+${ECHO_CMD} "\nCOMMAND: grep \"@137.132.6\" ${AUTH_FILE}\n" | tee -a ${DATA_FILE}
+grep "@137.132.6" "${AUTH_FILE}" | egrep -v "^#|grep"
+status=$?
+if [ "${status}" -ne 0 ] ; then
+	${ECHO_CMD} "${NORM}CURRENT VALUE: NOT AS PER EXPECTED VALUE, archsight server is not set in ${AUTH_FILE}${NORM}" | tee -a ${DATA_FILE}
+	${ECHO_CMD} "${NORM}EXPECTED VALUE: archsight server should be set in ${AUTH_FILE}${NORM}" | tee -a ${DATA_FILE}
+	FAILED_NUM_CHK="${FAILED_NUM_CHK}:6.2.1"
+else
+	${ECHO_CMD} "${NORM}CURRENT VALUE: AS PER EXPECTED VALUE, archsight server is set in ${AUTH_FILE}${NORM}" | tee -a ${DATA_FILE}
+	${ECHO_CMD} "${NORM}EXPECTED VALUE: archsight server should be set in ${AUTH_FILE}${NORM}" | tee -a ${DATA_FILE}
+	SUCCESS_NUM_CHK="${SUCCESS_NUM_CHK}:6.2.1"
+fi
+${ECHO_CMD} "\nOUTPUT: `grep \"@137.132.6\" ${AUTH_FILE}`" | tee -a ${DATA_FILE}
+${ECHO_CMD} "" | tee -a ${DATA_FILE}
+${ECHO_CMD} "----------------------------------------------------------------" | tee -a ${DATA_FILE}
+${ECHO_CMD} "6.2.2 set \"SYS_FAILED_LOGIN\" to \"0\" in ${ETC_SECURETTY}. This is only for Solaris" | tee -a ${DATA_FILE}
+${ECHO_CMD} "----------------------------------------------------------------" | tee -a ${DATA_FILE}
+if [ "${OS}" = "SunOS" ] ; then
+	string_verify_fn "SYS_FAILED_LOGINS" "${ETC_SECURETTY}" "0" "=" "6.2.2"
+	${ECHO_CMD} "" | tee -a ${DATA_FILE}
+else
+	${ECHO_CMD} "\nCOMMAND: NOT APPLICABLE\n" | tee -a ${DATA_FILE}
+	${ECHO_CMD} "${NORM}CURRENT VALUE: This Section is not applicable for ${OS}${NORM}" | tee -a ${DATA_FILE}
+	${ECHO_CMD} "${NORM}EXPECTED Value: NOT APPLICABLE, This Section is not applicable for ${OS} OS${NORM}" | tee -a ${DATA_FILE}
+	${ECHO_CMD} "\nOUTPUT: NA" | tee -a ${DATA_FILE}
+	NA_NUM_CHK="${NA_NUM_CHK}:6.2.2"
+	${ECHO_CMD} "" | tee -a ${DATA_FILE}
+fi
+
+${ECHO_CMD} "----------------------------------------------------------------" | tee -a ${DATA_FILE}
+${ECHO_CMD} "6.2.3 Capture all failed login attempts" | tee -a ${DATA_FILE}
+${ECHO_CMD} "----------------------------------------------------------------" | tee -a ${DATA_FILE}
+file_exists_fn "${WTMPX_FILE}" "6.2.3"
+if [ "${OS}" = "Linux" ] ; then
+	file_exists_fn "/var/log/btmp" "6.2.3"
+	file_exists_fn "/var/log/secure" "6.2.3"
+elif [ "${OS}" = "SunOS" ] ; then
+	file_exists_fn "/var/adm/messages" "6.2.3"
+elif [ "${OS}" = "HP-UX" ] ; then
+	file_exists_fn "/var/adm/btmps" "6.2.3"
+fi
+}
+
+#############################################################################
+# capture Failed login attempts 
+#############################################################################
+log_failed_login_attempts_set_fn()
+{
+${ECHO_CMD} "" | tee -a ${DATA_FILE}
+${ECHO_CMD} "----------------------------------------------------------------" | tee -a ${DATA_FILE}
+${ECHO_CMD} "6.2.1  Configure /etc/syslog.conf to transfer all system Security logs to archsight servers(CERT Team)" | tee -a ${DATA_FILE}
+${ECHO_CMD} "----------------------------------------------------------------" | tee -a ${DATA_FILE}
+${ECHO_CMD} "\nCOMMAND: grep \"@137.132.6\" ${AUTH_FILE}\n" | tee -a ${DATA_FILE}
+grep "@137.132.6" "${AUTH_FILE}" | egrep -v "^#|grep"
+status=$?
+if [ "${status}" -ne 0 ] ; then
+	${ECHO_CMD} "${NORM}CURRENT VALUE: NOT AS PER EXPECTED VALUE, archsight server is not set in ${AUTH_FILE}${NORM}" | tee -a ${DATA_FILE}
+	if [ "${OS}" = "Linux" ] ; then
+		${ECHO_CMD} "local6.*						@137.132.6.48" >> ${AUTH_FILE}
+	elif [ "${OS}" = "SunOS" ] ; then
+		${ECHO_CMD} "*.debug						@137.132.6.48" >> ${AUTH_FILE}
+	elif [ "${OS}" = "HP-UX" ] ; then
+		${ECHO_CMD} "*.debug                 @137.132.6.48" >> ${AUTH_FILE}	
+	fi
+	${ECHO_CMD} "${NORM}EXPECTED VALUE: archsight server is set in ${AUTH_FILE}${NORM}" | tee -a ${DATA_FILE}
+	SUCCESS_NUM_CHK="${SUCCESS_NUM_CHK}:6.2.1"
+else
+	${ECHO_CMD} "${NORM}CURRENT VALUE: AS PER EXPECTED VALUE, archsight server is set in ${AUTH_FILE}${NORM}" | tee -a ${DATA_FILE}
+	${ECHO_CMD} "${NORM}EXPECTED VALUE: archsight server should be set in ${AUTH_FILE}${NORM}" | tee -a ${DATA_FILE}
+	SUCCESS_NUM_CHK="${SUCCESS_NUM_CHK}:6.2.1"
+fi
+${ECHO_CMD} "\nOUTPUT: `grep \"@137.132.6\" ${AUTH_FILE}`" | tee -a ${DATA_FILE}
+
+${ECHO_CMD} "" | tee -a ${DATA_FILE}
+${ECHO_CMD} "----------------------------------------------------------------" | tee -a ${DATA_FILE}
+${ECHO_CMD} "6.2.2 set \"SYS_FAILED_LOGIN\" to \"0\" in ${ETC_SECURETTY}. This is only for Solaris" | tee -a ${DATA_FILE}
+${ECHO_CMD} "----------------------------------------------------------------" | tee -a ${DATA_FILE}
+if [ "${OS}" = "SunOS" ] ; then
+	string_set_fn "SYS_FAILED_LOGINS" "${ETC_SECURETTY}" "0" "=" "6.2.2"
+	${ECHO_CMD} "" | tee -a ${DATA_FILE}
+else
+	${ECHO_CMD} "\nCOMMAND: NOT APPLICABLE\n" | tee -a ${DATA_FILE}
+	${ECHO_CMD} "${NORM}CURRENT VALUE: This Section is not applicable for ${OS}${NORM}" | tee -a ${DATA_FILE}
+	${ECHO_CMD} "${NORM}EXPECTED Value: NOT APPLICABLE, This Section is not applicable for ${OS} OS${NORM}" | tee -a ${DATA_FILE}
+	${ECHO_CMD} "\nOUTPUT: NA" | tee -a ${DATA_FILE}
+	NA_NUM_CHK="${NA_NUM_CHK}:6.2.2"
+	${ECHO_CMD} "" | tee -a ${DATA_FILE}
+fi
+
+${ECHO_CMD} "----------------------------------------------------------------" | tee -a ${DATA_FILE}
+${ECHO_CMD} "6.2.3 Capture all failed login attempts" | tee -a ${DATA_FILE}
+${ECHO_CMD} "----------------------------------------------------------------" | tee -a ${DATA_FILE}
+file_exists_fn "${WTMPX_FILE}"
+
+if [ ! -f "${WTMPX_FILE}" ] ; then
+	echo "${NORM}CURRENT VALUE: NOT AS PER EXPECTED VALUE, ${WTMPX_FILE} is not present${NORM}" | tee -a ${DATA_FILE}
+	touch ${WTMPX_FILE} && echo "${NORM}EXPECTED VALUE: ${WTMPX_FILE} is present${NORM}" | tee -a ${DATA_FILE}
+fi
+
+if [ "${OS}" = "Linux" ] ; then
+	file_exists_fn "/var/log/btmp"
+	file_exists_fn "/var/log/secure"
+	for FILE in /var/log/btmp /var/log/secure
+	do
+		if [ ! -f "${FILE}" ] ; then
+			echo "${NORM}CURRENT VALUE: NOT AS PER EXPECTED VALUE, ${FILE} is not present${NORM}" | tee -a ${DATA_FILE}
+			touch ${FILE} && echo "${NORM}EXPECTED VALUE: ${FILE} is present${NORM}" | tee -a ${DATA_FILE}
+		fi
+	done
+elif [ "${OS}" = "SunOS" ] ; then
+	file_exists_fn "/var/adm/messages"
+	if [ ! -f "/var/adm/messages" ] ; then
+		echo "${NORM}CURRENT VALUE: NOT AS PER EXPECTED VALUE, FILE /var/adm/messages is not present${NORM}" | tee -a ${DATA_FILE}
+		touch /var/adm/messages && echo "${NORM}EXPECTED VALUE: /var/adm/messages is present${NORM}" | tee -a ${DATA_FILE}
+	fi
+elif [ "${OS}" = "HP-UX" ] ; then
+	file_exists_fn "/var/adm/btmps"
+	if [ ! -f "/var/adm/btmps" ] ;then
+		echo "${NORM}CURRENT VALUE: NOT AS PER EXPECTED VALUE, FILE /var/adm/btmps is not present${NORM}" | tee -a ${DATA_FILE}
+		touch /var/adm/btmps && echo "${NORM}EXPECTED VALUE: /var/adm/btmps is present${NORM}" | tee -a ${DATA_FILE}
+	fi
+fi
+}
+
+#############################################################################
+# Verify whether Log all Switch user logs
+#############################################################################
+log_all_switch_user_verify_fn()
+{
+NUM_CHK="$1"
+if [ "${OS}" = "Linux" ] ; then
+	if [ -f "/var/log/sulog" ] ; then
+		file="/var/log/sulog"
+	else
+		file="/var/log/sudolog"
+	fi
+elif [ "${OS}" = "SunOS" ] ; then
+	file="/var/adm/sulog"
+elif [ "${OS}" = "HP-UX" ] ; then
+	file="/var/adm/sulog"
+fi
+
+${ECHO_CMD} "\nCOMMAND: ls -l ${file}\n" | tee -a ${DATA_FILE}
+if [ ! -f  "${file}" ] ; then
+	${ECHO_CMD} "${NORM}CURRENT VALUE: NOT AS PER EXPECTED VALUE, FILE ${file} is not present${NORM}" | tee -a ${DATA_FILE}
+	${ECHO_CMD} "${NORM}EXPECTED VALUE: FILE ${file} should be present to capture su logs${NORM}" | tee -a ${DATA_FILE}
+	FAILED_NUM_CHK="${FAILED_NUM_CHK}:${NUM_CHK}"	
+else
+	${ECHO_CMD} "${NORM}CURRENT VALUE: AS PER EXPECTED VALUE, FILE ${file} is present${NORM}" | tee -a ${DATA_FILE}
+	${ECHO_CMD} "${NORM}EXPECTED VALUE: FILE ${file} should be present to capture su logs${NORM}" | tee -a ${DATA_FILE}
+	SUCCESS_NUM_CHK="${SUCCESS_NUM_CHK}:${NUM_CHK}"
+fi
+${ECHO_CMD} "\nOUTPUT: `ls -l ${file}`" | tee -a ${DATA_FILE}
+NUM_CHK=""	 
+}
+
+#############################################################################
+# Log all Switch user logs
+#############################################################################
+log_all_switch_user_set_fn()
+{
+NUM_CHK="$1"
+if [ "${OS}" = "Linux" ] ; then
+	if [ -f "/var/log/sulog" ] ; then
+		file="/var/log/sulog"
+	else
+		file="/var/log/sudolog"
+	fi
+elif [ "${OS}" = "SunOS" ] ; then
+	file="/var/adm/sulog"
+elif [ "${OS}" = "HP-UX" ] ; then
+	file="/var/adm/sulog"
+fi
+
+${ECHO_CMD} "\nCOMMAND: ls -l ${file}\n" | tee -a ${DATA_FILE}
+if [ ! -f  "${file}" ] ; then
+	${ECHO_CMD} "${NORM}CURRENT VALUE: NOT AS PER EXPECTED VALUE, FILE ${file} is not present${NORM}" | tee -a ${DATA_FILE}
+	touch ${file}
+	${ECHO_CMD} "${NORM}EXPECTED VALUE: FILE ${file} is created to capture su logs${NORM}" | tee -a ${DATA_FILE}
+	SUCCESS_NUM_CHK="${SUCCESS_NUM_CHK}:${NUM_CHK}"
+	
+else
+	${ECHO_CMD} "${NORM}CURRENT VALUE: AS PER EXPECTED VALUE, FILE ${file} is present${NORM}" | tee -a ${DATA_FILE}
+	${ECHO_CMD} "${NORM}EXPECTED VALUE: FILE ${file} should be present to capture su logs${NORM}" | tee -a ${DATA_FILE}
+	SUCCESS_NUM_CHK="${SUCCESS_NUM_CHK}:${NUM_CHK}"
+fi
+${ECHO_CMD} "\nOUTPUT: `ls -l ${file}`" | tee -a ${DATA_FILE}
+NUM_CHK="" 
+}
+
+#############################################################################
+# Verify whether AUDIT DAEMON in all platforms is enabled. It should be enabled
+#############################################################################
+enable_auditd_verify_fn()
+{
+NUM_CHK="$1" 
+if [ "${OS}" = "Linux" ] ; then
+	cat /etc/redhat-release | egrep -w '7' >/dev/null
+	if [ $? -eq 0 ] ; then
+		${ECHO_CMD} "\nCOMMAND: systemctl -a | grep -i audit\n" | tee -a ${DATA_FILE}
+		service_state=`systemctl -a | grep -i audit`		
+	else	
+		${ECHO_CMD} "\nCOMMAND: chkconfig --list | grep -i \"auditd\"\n" | tee -a ${DATA_FILE}
+		service_state=`chkconfig --list  | grep -i auditd`
+	fi
+	
+	if [ -z "${service_state}" ] ; then
+		${ECHO_CMD} "${NORM}CURRENT VALUE: NOT AS PER EXPECTED VALUE, AUDIT DAEMON service is not available${NORM}" | tee -a ${DATA_FILE}
+		${ECHO_CMD} "${NORM}EXPECTED VALUE: AUDIT DAEMON should be enabled${NORM}" | tee -a ${DATA_FILE}
+		FAILED_NUM_CHK="${FAILED_NUM_CHK}:${NUM_CHK}"
+    else
+		${ECHO_CMD} "${service_state}" | egrep -w "3:on|active|running" >/dev/null 2>&1
+		if [ $? -eq 0 ] ; then
+			${ECHO_CMD} "${NORM}CURRENT VALUE: AS PER EXPECTED VALUE, AUDIT DAEMON is enabled${NORM}" | tee -a ${DATA_FILE}
+			${ECHO_CMD} "${NORM}EXPECTED VALUE: AUDIT DAEMON should be enabled${NORM}" | tee -a ${DATA_FILE}
+			SUCCESS_NUM_CHK="${SUCCESS_NUM_CHK}:${NUM_CHK}"
+        else
+			${ECHO_CMD} "${NORM}CURRENT VALUE: NOT AS PER EXPECTED VALUE, AUDIT DAEMON is disabled${NORM}" | tee -a ${DATA_FILE}
+			${ECHO_CMD} "${NORM}EXPECTED VALUE: AUDIT DAEMON should be enabled${NORM}" | tee -a ${DATA_FILE}
+			FAILED_NUM_CHK="${FAILED_NUM_CHK}:${NUM_CHK}"
+        fi
+	fi
+	${ECHO_CMD} "\nOUTPUT: ${service_state}" | tee -a ${DATA_FILE}
+elif [ "${OS}" = "SunOS" ] ; then
+	${ECHO_CMD} "\nCOMMAND: svcs -a | egrep -i \"svc:/system/auditd:default\"\n" | tee -a ${DATA_FILE}
+	svcs -Ho state svc:/system/auditd:default | egrep "online|enabled" >/dev/null 2>&1
+	if [ $? -eq 0 ] ; then
+		${ECHO_CMD} "${NORM}CURRENT VALUE: AS PER EXPECTED VALUE, AUDIT DAEMON is in running state${NORM}" | tee -a ${DATA_FILE}
+		${ECHO_CMD} "${NORM}EXPECTED VALUE: AUDIT DAEMON should be enabled${NORM}" | tee -a ${DATA_FILE}
+		SUCCESS_NUM_CHK="${SUCCESS_NUM_CHK}:${NUM_CHK}"
+	else
+		${ECHO_CMD} "${NORM}CURRENT VALUE: NOT AS PER EXPECTED VALUE, AUDIT DAEMON is disabled${NORM}" | tee -a ${DATA_FILE}
+		${ECHO_CMD} "${NORM}EXPECTED VALUE: AUDIT DAEMON should be enabled${NORM}" | tee -a ${DATA_FILE}
+		FAILED_NUM_CHK="${FAILED_NUM_CHK}:${NUM_CHK}"
+	fi
+	${ECHO_CMD} "\nOUTPUT: `svcs -Ho state svc:/system/auditd:default`" | tee -a ${DATA_FILE}
+elif [ "${OS}" = "HP-UX" ] ; then
+	#Compare the string/flag /etc/rc.config.d/namesvrs
+	string_verify_fn "AUDITING" "/etc/rc.config.d/auditing" "1" "=" "${NUM_CHK}"
+fi
+NUM_CHK=""
+}
+
+#############################################################################
+# Enable AUDIT DAEMON in all platforms
+#############################################################################
+enable_auditd_set_fn()
+{
+NUM_CHK="$1"
+if [ "${OS}" = "Linux" ] ; then
+	cat /etc/redhat-release | egrep -w '7' >/dev/null
+	if [ $? -eq 0 ] ; then
+		${ECHO_CMD} "\nCOMMAND: systemctl -a | grep -i audit\n" | tee -a ${DATA_FILE}
+		service_state=`systemctl -a | grep -i audit`		
+	else	
+		${ECHO_CMD} "\nCOMMAND: chkconfig --list | grep -i auditd\n" | tee -a ${DATA_FILE}
+		service_state=`chkconfig --list  | grep -i auditd`
+	fi
+	
+	if [ -z "${service_state}" ] ; then
+		${ECHO_CMD} "${NORM}CURRENT VALUE: NOT AS PER EXPECTED VALUE, AUDIT DAEMON service is not available${NORM}" | tee -a ${DATA_FILE}
+		${ECHO_CMD} "${NORM}EXPECTED VALUE: AUDIT DAEMON should be enabled${NORM}" | tee -a ${DATA_FILE}
+		FAILED_NUM_CHK="${FAILED_NUM_CHK}:${NUM_CHK}"
+	else
+		${ECHO_CMD} "${service_state}" | egrep -w "3:on|active|running" >/dev/null 2>&1
+		if [ $? -eq 0 ] ; then
+			${ECHO_CMD} "${NORM}CURRENT VALUE: AS PER EXPECTED VALUE, AUDIT DAEMON is enabled${NORM}" | tee -a ${DATA_FILE}
+			${ECHO_CMD} "${NORM}EXPECTED VALUE: AUDIT DAEMON should be enabled${NORM}" | tee -a ${DATA_FILE}
+			SUCCESS_NUM_CHK="${SUCCESS_NUM_CHK}:${NUM_CHK}"
+		else
+			${ECHO_CMD} "${NORM}CURRENT VALUE:AUDIT DAEMON is disabled${NORM}" | tee -a ${DATA_FILE}
+			cat /etc/redhat-release | egrep -w '7' >/dev/null
+			if [ $? -eq 0 ] ; then
+				systemctl enable auditd.service &&  ${ECHO_CMD} "${NORM}EXPECTED VALUE: AUDIT DAEMON is enabled now${NORM}" | tee -a ${DATA_FILE}		
+			else	
+				chkconfig auditd on &&  ${ECHO_CMD} "${NORM}EXPECTED VALUE: AUDIT DAEMON is enabled now${NORM}" | tee -a ${DATA_FILE}
+			fi
+			SUCCESS_NUM_CHK="${SUCCESS_NUM_CHK}:${NUM_CHK}"
+		fi
+	fi
+	${ECHO_CMD} "\nOUTPUT: ${service_state}" | tee -a ${DATA_FILE}
+elif [ "${OS}" = "SunOS" ] ; then
+	${ECHO_CMD} "\nCOMMAND: svcs -a | egrep -i \"svc:/system/auditd:default\"\n" | tee -a ${DATA_FILE}
+	svcs -Ho state svc:/system/auditd:default  | egrep "online|enabled" >/dev/null 2>&1
+	if [ $? -eq 0 ] ; then
+		${ECHO_CMD} "${NORM}CURRENT VALUE: AS PER EXPECTED VALUE, AUDIT DAEMON is in running state${NORM}" | tee -a ${DATA_FILE}
+		${ECHO_CMD} "${NORM}EXPECTED VALUE: AUDIT DAEMON should be enabled${NORM}" | tee -a ${DATA_FILE}
+		SUCCESS_NUM_CHK="${SUCCESS_NUM_CHK}:${NUM_CHK}"
+	else
+		${ECHO_CMD} "${NORM}CURRENT VALUE: NOT AS PER EXPECTED VALUE, AUDIT DAEMON is not in running state${NORM}" | tee -a ${DATA_FILE} 
+		svcadm enable /system/auditd:Default
+		${ECHO_CMD} "${NORM}EXPECTED VALUE: AUDIT DAEMON is enabled now${NORM}" | tee -a ${DATA_FILE}
+		SUCCESS_NUM_CHK="${SUCCESS_NUM_CHK}:${NUM_CHK}"
+	fi
+	${ECHO_CMD} "\nOUTPUT: `svcs -Ho state svc:/system/auditd:default`" | tee -a ${DATA_FILE}
+elif [ "${OS}" = "HP-UX" ] ; then
+	#Compare the string/flag /etc/rc.config.d/namesvrs
+	string_set_fn "AUDITING" "/etc/rc.config.d/auditing" "1" "=" "${NUM_CHK}"
+fi
+NUM_CHK=""
+}
+
+###################################################################################
+# Function for end message
+###################################################################################
+end_msg_fn()
+{
+cat << EOD 2>&1
+####################################################################################################
+#                                                                                     				
+#     Company SERVER HARDENING REPORT:
+#																									
+#     All parameters checked successfully.                                           					
+#     For output please see the below file:																	
+#     ${DATA_FILE}                                   													
+#                                                                                    							
+####################################################################################################
+EOD
+
+SUCCESS_COUNT=`echo "${SUCCESS_NUM_CHK}"| awk -F ":" '{for(i=1;i<=NF;++i) print $i}'|sort -n|uniq|awk '!/^$/{printf "%s", "\n"  $1 ","}'|wc -l`
+FAILED_COUNT=`echo "${FAILED_NUM_CHK}"| awk -F ":" '{for(i=1;i<=NF;++i) print $i}'|sort -n|uniq|awk '!/^$/{printf "%s", "\n"  $1 ","}'|wc -l`
+NA_COUNT=`echo "${NA_NUM_CHK}"| awk -F ":" '{for(i=1;i<=NF;++i) print $i}'|sort -n|uniq|awk '!/^$/{printf "%s", "\n"  $1 ","}'|wc -l`
+#FAILED_NUM=`echo "${FAILED_NUM_CHK}"| awk -F ":" '{for(i=1;i<=NF;++i) print $i}'|sort -n|uniq|awk '!/^$/ {printf(" %s,",$1);}'`
+FAILED_NUM=`echo "${FAILED_NUM_CHK}"| awk -F ":" '{for(i=1;i<=NF;++i) print $i}'|sort -t. -k1,1n -k2,2n |uniq|awk '!/^$/ {printf(" %s,",$1);}'`
+
+${ECHO_CMD} "" | tee -a ${DATA_FILE}
+${ECHO_CMD} "----------------------------------------------------------------" | tee -a ${DATA_FILE}
+${ECHO_CMD} "${GREEN_F}NUMBER OF SUCCESSFUL CHECKS: ${SUCCESS_COUNT} ${NORM}" | tee -a ${DATA_FILE}
+${ECHO_CMD} "" | tee -a ${DATA_FILE}
+${ECHO_CMD} "${RED_F}NUMBER OF FAILED CHECKS: ${FAILED_COUNT} ${NORM}" | tee -a ${DATA_FILE}
+${ECHO_CMD} "" | tee -a ${DATA_FILE}
+${ECHO_CMD} "${CYAN_F}NA CHECK LIST NUMBER: ${NA_COUNT} ${NORM}" | tee -a ${DATA_FILE}
+${ECHO_CMD} "----------------------------------------------------------------" | tee -a ${DATA_FILE}
+${ECHO_CMD} "${RED_F}FAILED CHECK LISTS: ${FAILED_NUM} ${NORM}" | tee -a ${DATA_FILE}
+${ECHO_CMD} "----------------------------------------------------------------" | tee -a ${DATA_FILE}
+}
